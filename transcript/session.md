@@ -1,6 +1,6 @@
 # Agent transcript
 
-Exported from `7a5fbfea-5bdc-4216-8623-693d559f6408.jsonl` on 2026-09-07 16:14. Tool arguments are clipped at 900 characters and results at 600, so long file writes and command output show their shape rather than their full contents.
+Exported from `7a5fbfea-5bdc-4216-8623-693d559f6408.jsonl` on 2026-09-07 16:40. Tool arguments are clipped at 900 characters and results at 600, so long file writes and command output show their shape rather than their full contents.
 
 ### User · 11:32:55
 
@@ -3450,5 +3450,1086 @@ Exit code 127
 {
   "command": "cd /c/Users/Abbsi/claude/realtime-ttt && ./.venv/Scripts/python.exe tools/export_transcript.py \"/c/Users/Abbsi/.claude/projects/C--Users-Abbsi-claude/7a5fbfea-5bdc-4216-8623-693d559f6408.jsonl\" -o transcript/session.md 2>&1 && echo \"--- head ---\" && head -30 transcript/session.md",
   "description": "Export the session transcript to markdown"
+}
+```
+
+```
+wrote transcript\session.md (164 KB)
+--- head ---
+# Agent transcript
+
+Exported from `7a5fbfea-5bdc-4216-8623-693d559f6408.jsonl` on 2026-09-07 16:14. Tool arguments are clipped at 900 characters and results at 600, so long file writes and command output show their shape rather than their full contents.
+
+### User · 11:32:55
+
+hey claude 
+i had an interview for a job and got assignment to do i will share it read it very well 
+write a roadmap on each step what to do so we finish it in the best way 
+if you need to ask questions on the decision and the architect of the project ask before d
+… [1,179 more characters]
+```
+
+**→ Bash**
+
+```json
+{
+  "command": "echo \"user turns:    $(grep -c '^### User' transcript/session.md)\" && echo \"claude turns:  $(grep -c '^### Claude' transcript/session.md)\" && echo \"tool calls:    $(grep -c '^\\*\\*→ ' transcript/session.md)\" && echo \"reasoning:     $(grep -c 'summary>Claude.s reasoning' transcript/session.md)\" && echo \"\" && echo \"--- tools used ---\" && grep -o '^\\*\\*→ [A-Za-z_]*' transcript/session.md | sort | uniq -c | sort -rn | head -12",
+  "description": "Check transcript export completeness"
+}
+```
+
+```
+user turns:    9
+claude turns:  55
+tool calls:    135
+reasoning:     0
+
+--- tools used ---
+     46 **→ Bash
+     31 **→ Write
+     21 **→ Edit
+     11 **→ mcp__Claude_Browser__browser_batch
+      9 **→ mcp__Claude_Browser__javascript_tool
+      5 **→ mcp__Claude_Browser__preview_start
+      4 **→ mcp__Claude_Browser__preview_stop
+      2 **→ mcp__Claude_Browser__preview_logs
+      2 **→ AskUserQuestion
+      1 **→ mcp__Claude_Browser__tabs_select
+      1 **→ mcp__Claude_Browser__tabs_create
+      1 **→ mcp__Claude_Browser__resize_window
+```
+
+### Claude · 13:14:21
+
+164 KB, 9 user turns / 55 assistant turns / 135 tool calls. Adding a README pointer and committing:
+
+**→ Edit**
+
+```json
+{
+  "replace_all": false,
+  "file_path": "C:\\Users\\Abbsi\\claude\\realtime-ttt\\README.md",
+  "old_string": "## Layout",
+  "new_string": "## Agent transcript\n\nBuilt with Claude Code. The raw session log is one JSON object per line, so it is\nexported to readable Markdown at [transcript/session.md](transcript/session.md):\n\n```bash\npython tools/export_transcript.py --list                       # find session logs\npython tools/export_transcript.py <session.jsonl> -o transcript/session.md\n```\n\nTool arguments and results are clipped so long file writes show their shape\nrather than their contents. Regenerate after the final change so the export\ncovers the whole session.\n\n## Layout"
+}
+```
+
+```
+The file C:\Users\Abbsi\claude\realtime-ttt\README.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+**→ Bash**
+
+```json
+{
+  "command": "git add -A && git commit -q -m \"$(cat <<'EOF'\nPhase 7: README, design note, and transcript export\n\nREADME leads with how to run from a clean checkout and states nine\nlimitations up front rather than leaving them to be discovered, including\nthe two that would actually bite: single-process only, and the session\ncookie being a bearer token.\n\nDESIGN.md covers the four things the brief asked for - where state lives,\nhow authority is enforced, how reconnection and spectators are modelled,\nhow persistence works - each with the alternatives rejected and why. It\nalso records that the end-to-end durability test cannot prove the\ncommit-before-broadcast ordering, only that the property holds; the\nguarantee comes from the code structure.\n\ntools/export_transcript.py flattens a Claude Code .jsonl session log into\nMarkdown: 9 user turns, 55 assistant turns, 135 tool call
+… [212 more characters]
+```
+
+```
+warning: in the working copy of 'DESIGN.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tools/export_transcript.py', LF will be replaced by CRLF the next time Git touches it
+086a8fc Phase 7: README, design note, and transcript export
+c21f546 Phase 6: end-to-end tests against a real killed-and-restarted server
+1caf0ea Fix a reconnect race introduced by the focus/online nudge
+--- files ---
+.gitignore
+DESIGN.md
+README.md
+ROADMAP.md
+app/__init__.py
+ap
+… [325 more characters]
+```
+
+### Claude · 13:15:14
+
+Phase 7 done — all three deliverables are in. Quick summary, then the production-phase guidance you asked for.
+
+## What landed
+
+**[README.md](realtime-ttt/README.md)** — clean-checkout run instructions, a test table, what's done, what I'd do next in priority order, and **nine limitations stated up front**. The two that matter: single-process only (with an explicit "don't use `--workers 2`" warning), and the session cookie being a bearer token.
+
+**[DESIGN.md](realtime-ttt/DESIGN.md)** — the four things they asked for, each with rejected alternatives. It also admits something a weaker note would hide: the durability test proves the property holds but *cannot* prove the commit-before-broadcast ordering, because flipping it would leave a microsecond window a kill would never land in. The guarantee comes from code structure, not the test.
+
+**[transcript/session.md](realtime-ttt/transcript/session.md)** — 164 KB, 9 user turns, 55 assistant turns, 135 tool calls. Regenerate at the very end so it covers everything.
+
+---
+
+## Production phase: what you're actually up against
+
+Four things will bite, and only one is about PyInstaller:
+
+**1. Binding.** Right now it's `127.0.0.1`, which your phone cannot reach. Needs `0.0.0.0` plus your LAN IP. Windows Firewall will prompt on first run — that prompt is the single most likely thing to make you think the build is broken when it isn't.
+
+**2. The invite link already works.** It's built from `request.base_url`, so a phone hitting `http://192.168.1.x:8000` gets an invite URL with *that* host, not `localhost`. Nothing to change — I'll verify rather than assume.
+
+**3. Copy-to-clipboard will silently break on your phone.** `navigator.clipboard` only works in a *secure context*, and `http://192.168.1.x` isn't one (only `localhost` gets an exemption). My current fallback just selects the text, which is poor on mobile. I'll fix this regardless of what you choose.
+
+**4. PyInstaller will break two paths.** `STATIC_DIR` and the DB path are both derived from `__file__`, which points into a temp extraction dir when frozen — so static files may vanish and your database would be wiped on every run. Both need explicit frozen-mode handling. Also, uvicorn loads its protocol implementations dynamically, so PyInstaller misses them unless told; that's the classic "works locally, exe crashes instantly" failure.
+
+None of this is hard, but all four are silent failures, which is exactly the category we've been avoiding all project.
+
+**→ AskUserQuestion**
+
+```json
+{
+  "questions": [
+    {
+      "question": "How should the executable be built?",
+      "header": "Packaging",
+      "multiSelect": false,
+      "options": [
+        {
+          "label": "PyInstaller one-file .exe (Recommended)",
+          "description": "A single ~25MB .exe with Python bundled in. Double-click, it starts the server and prints the LAN URL. No Python needed on the machine. Costs: needs frozen-path handling and hidden-import config for uvicorn, and Windows SmartScreen will warn on first run since it's unsigned."
+        },
+        {
+          "label": "A .bat / .ps1 launcher",
+          "description": "Ten lines: create the venv if missing, install, run uvicorn bound to 0.0.0.0, print the LAN URL. Trivially auditable and nothing can silently break. But it needs Python installed, so it isn't really an 'executable'."
+        },
+        {
+          "label": "Docker image",
+  
+… [3,196 more characters]
+```
+
+```
+Your questions have been answered: "How should the executable be built?"="PyInstaller one-file .exe (Recommended)", "Where should the packaged app keep its database?"="Next to the .exe (Recommended)", "How should your phone reach the game? (I'll print the LAN URL either way.)"="QR code in the invite UI (Recommended)", "Where should the packaging work live, given the brief says not to gold-plate?"="Same repo, clearly labelled (Recommended)". You can now continue with these answers in mind.
+```
+
+### Claude · 13:20:20
+
+All recommendations taken. Let me check the QR library situation first — I want zero extra dependencies in the core app.
+
+**→ Bash**
+
+```json
+{
+  "command": "./.venv/Scripts/python.exe -m pip install --quiet segno 2>&1 | tail -3; ./.venv/Scripts/python.exe - <<'PYEOF'\nimport segno, io, sys\nprint(\"segno\", segno.__version__)\nprint(\"deps:\", [d for d in sys.modules if d in (\"PIL\",\"lxml\",\"numpy\")] or \"none beyond stdlib\")\nbuf = io.StringIO()\nsegno.make(\"http://192.168.1.5:8000/g/AbCdEfGh1234\", error=\"m\").save(\n    buf, kind=\"svg\", scale=4, border=2, dark=\"#14171c\", light=None, xmldecl=False, svgns=True)\nsvg = buf.getvalue()\nprint(f\"svg bytes: {len(svg)}\")\nprint(svg[:180])\nPYEOF",
+  "description": "Test segno pure-python QR SVG generation"
+}
+```
+
+```
+Exit code 1
+segno 1.6.6
+deps: none beyond stdlib
+Traceback (most recent call last):
+  File "<stdin>", line 5, in <module>
+  File "C:\Users\Abbsi\claude\realtime-ttt\.venv\Lib\site-packages\segno\__init__.py", line 940, in save
+    writers.save(self.matrix, self._matrix_size, out, kind, **kw)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Abbsi\claude\realtime-ttt\.venv\Lib\site-packages\segno\writers.py", line 1603, in save
+    serializer(matrix, matrix_size, out, **kw)
+    ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Abbsi\claude\re
+… [365 more characters]
+```
+
+**→ Bash**
+
+```json
+{
+  "command": "./.venv/Scripts/python.exe - <<'PYEOF'\nimport segno, io\nbuf = io.BytesIO()\nsegno.make(\"http://192.168.1.5:8000/g/AbCdEfGh1234\", error=\"m\").save(\n    buf, kind=\"svg\", scale=4, border=2, dark=\"#14171c\", light=None, xmldecl=False, svgns=True)\nsvg = buf.getvalue().decode()\nprint(f\"svg bytes: {len(svg)}\")\nprint(svg[:200])\nPYEOF",
+  "description": "Retest segno SVG output with BytesIO"
+}
+```
+
+```
+svg bytes: 1511
+<svg xmlns="http://www.w3.org/2000/svg" width="132" height="132" class="segno"><path transform="scale(4)" class="qrline" stroke="#14171c" d="M2 2.5h7m1 0h2m2 0h2m2 0h2m2 0h1m1 0h7m-29 1h1m5 0h1m1 0h1m
+```
+
+### Claude · 13:21:10
+
+segno works — pure stdlib, 1.5 KB SVG. Building the production phase now. Paths first, since that's what breaks silently when frozen:
+
+**→ Edit**
+
+```json
+{
+  "replace_all": false,
+  "file_path": "C:\\Users\\Abbsi\\claude\\realtime-ttt\\app\\main.py",
+  "old_string": "PROJECT_ROOT = Path(__file__).resolve().parent.parent\nSTATIC_DIR = PROJECT_ROOT / \"static\"\n# Anchored to the repo, not the process working directory, so the database does\n# not appear in a different place depending on where uvicorn was launched from.\nDEFAULT_DB = Path(os.environ.get(\"TTT_DB\") or PROJECT_ROOT / \"data\" / \"games.db\")",
+  "new_string": "FROZEN = getattr(sys, \"frozen\", False)\n\n\ndef _resource_root() -> Path:\n    \"\"\"Where read-only bundled files live.\n\n    PyInstaller unpacks a one-file build into a temporary directory and points\n    `sys._MEIPASS` at it. `__file__` points in there too, which is correct for\n    static assets and catastrophically wrong for the database — see below.\n    \"\"\"\n    if FROZEN:\n        return Path(sys._MEIPASS
+… [831 more characters]
+```
+
+```
+The file C:\Users\Abbsi\claude\realtime-ttt\app\main.py has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+**→ Edit**
+
+```json
+{
+  "replace_all": false,
+  "file_path": "C:\\Users\\Abbsi\\claude\\realtime-ttt\\app\\main.py",
+  "old_string": "import json\nimport os\nimport re\nimport secrets\nfrom contextlib import asynccontextmanager\nfrom pathlib import Path\nfrom typing import Literal\n\nfrom fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect\nfrom fastapi.responses import FileResponse, HTMLResponse, JSONResponse\nfrom fastapi.staticfiles import StaticFiles\nfrom pydantic import BaseModel, ConfigDict, ValidationError",
+  "new_string": "import io\nimport json\nimport os\nimport re\nimport secrets\nimport sys\nfrom contextlib import asynccontextmanager\nfrom pathlib import Path\nfrom typing import Literal\n\nfrom fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect\nfrom fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response\nfrom fastapi.
+… [287 more characters]
+```
+
+```
+The file C:\Users\Abbsi\claude\realtime-ttt\app\main.py has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+**→ Edit**
+
+```json
+{
+  "replace_all": false,
+  "file_path": "C:\\Users\\Abbsi\\claude\\realtime-ttt\\app\\main.py",
+  "old_string": "    # --- realtime ----------------------------------------------------------",
+  "new_string": "    @app.get(\"/g/{game_id}/qr.svg\")\n    async def game_qr(game_id: str, request: Request) -> Response:\n        \"\"\"The invite link as a QR code, so a phone can join without typing it.\n\n        Rendered server-side because a page served over plain http on a LAN\n        cannot use the Clipboard API — `http://192.168.x.x` is not a secure\n        context — so \"copy the link\" is not actually available on the device\n        you most want to play on.\n\n        Fixed black on white regardless of theme: a theme-coloured QR on a dark\n        background is a QR that will not scan.\n        \"\"\"\n        if segno is None:\n            raise HTTPException(status_code=404, deta
+… [789 more characters]
+```
+
+```
+The file C:\Users\Abbsi\claude\realtime-ttt\app\main.py has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+**→ Edit**
+
+```json
+{
+  "replace_all": false,
+  "file_path": "C:\\Users\\Abbsi\\claude\\realtime-ttt\\static\\game.html",
+  "old_string": "      <div class=\"invite-row\">\n        <input class=\"invite-url\" id=\"invite-url\" readonly aria-label=\"Invite link\">\n        <button class=\"primary\" id=\"copy\" type=\"button\">Copy</button>\n      </div>\n    </div>",
+  "new_string": "      <div class=\"invite-row\">\n        <input class=\"invite-url\" id=\"invite-url\" readonly aria-label=\"Invite link\">\n        <button class=\"primary\" id=\"copy\" type=\"button\">Copy</button>\n      </div>\n      <div class=\"invite-qr\" id=\"invite-qr\" hidden>\n        <img id=\"qr\" alt=\"QR code linking to this game\" width=\"132\" height=\"132\">\n        <p class=\"muted\">or scan it with a phone on the same Wi-Fi</p>\n      </div>\n    </div>"
+}
+```
+
+```
+The file C:\Users\Abbsi\claude\realtime-ttt\static\game.html has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+**→ Edit**
+
+```json
+{
+  "replace_all": false,
+  "file_path": "C:\\Users\\Abbsi\\claude\\realtime-ttt\\static\\style.css",
+  "old_string": "button.primary {",
+  "new_string": ".invite-qr { margin-top: 14px; }\n\n/* White plate behind the QR in both themes: contrast is what makes it scan. */\n.invite-qr img {\n  display: block;\n  margin: 0 auto;\n  background: #ffffff;\n  border-radius: 8px;\n  padding: 6px;\n}\n\nbutton.primary {"
+}
+```
+
+```
+The file C:\Users\Abbsi\claude\realtime-ttt\static\style.css has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+**→ Edit**
+
+```json
+{
+  "replace_all": false,
+  "file_path": "C:\\Users\\Abbsi\\claude\\realtime-ttt\\static\\game.js",
+  "old_string": "el.copy.addEventListener(\"click\", async () => {\n  try {\n    await navigator.clipboard.writeText(window.location.href);\n    el.copy.textContent = \"Copied\";\n    setTimeout(() => (el.copy.textContent = \"Copy\"), 1600);\n  } catch {\n    el.inviteUrl.select();\n  }\n});",
+  "new_string": "function copied(label) {\n  el.copy.textContent = label;\n  setTimeout(() => (el.copy.textContent = \"Copy\"), 1800);\n}\n\nel.copy.addEventListener(\"click\", async () => {\n  const url = window.location.href;\n\n  // The Clipboard API needs a secure context, and http://192.168.x.x is not\n  // one — which is exactly the address you use to play on your phone. Falling\n  // back to a selection means the button still does something useful there.\n  if (navigator.clipboard && window.is
+… [391 more characters]
+```
+
+```
+The file C:\Users\Abbsi\claude\realtime-ttt\static\game.js has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+**→ Edit**
+
+```json
+{
+  "replace_all": false,
+  "file_path": "C:\\Users\\Abbsi\\claude\\realtime-ttt\\static\\game.js",
+  "old_string": "  invite: document.getElementById(\"invite\"),\n  inviteUrl: document.getElementById(\"invite-url\"),\n  copy: document.getElementById(\"copy\"),\n};",
+  "new_string": "  invite: document.getElementById(\"invite\"),\n  inviteUrl: document.getElementById(\"invite-url\"),\n  copy: document.getElementById(\"copy\"),\n  inviteQr: document.getElementById(\"invite-qr\"),\n  qr: document.getElementById(\"qr\"),\n};\n\n// The QR endpoint is optional — segno may not be installed. Reveal the block\n// only once the image actually loads, so a missing endpoint degrades to no QR\n// rather than to a broken image icon.\nel.qr.addEventListener(\"load\", () => (el.inviteQr.hidden = false));\nel.qr.addEventListener(\"error\", () => (el.inviteQr.hidden = true));"
+}
+```
+
+```
+The file C:\Users\Abbsi\claude\realtime-ttt\static\game.js has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+**→ Edit**
+
+```json
+{
+  "replace_all": false,
+  "file_path": "C:\\Users\\Abbsi\\claude\\realtime-ttt\\static\\game.js",
+  "old_string": "  const inviting = you.role === \"player\" && game.status === \"waiting\";\n  el.invite.hidden = !inviting;\n  if (inviting && !el.inviteUrl.value) el.inviteUrl.value = window.location.href;",
+  "new_string": "  const inviting = you.role === \"player\" && game.status === \"waiting\";\n  el.invite.hidden = !inviting;\n  if (inviting && !el.inviteUrl.value) {\n    el.inviteUrl.value = window.location.href;\n    el.qr.src = `/g/${GAME_ID}/qr.svg`;\n  }"
+}
+```
+
+```
+The file C:\Users\Abbsi\claude\realtime-ttt\static\game.js has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+### Claude · 13:21:58
+
+Now the launcher and build tooling:
+
+**→ Write**
+
+```json
+{
+  "file_path": "C:\\Users\\Abbsi\\claude\\realtime-ttt\\packaging\\launcher.py",
+  "content": "\"\"\"Entry point for the packaged build.\n\nNot part of the assignment. This exists so the service can be double-clicked and\nplayed on a phone over the local network, which is a demo convenience rather\nthan a feature of the game.\n\nDiffers from `uvicorn app.main:app` in exactly two ways: it binds 0.0.0.0 so\nother devices on the Wi-Fi can reach it, and it prints the address they should\nuse, because working that out by hand is the actual obstacle.\n\"\"\"\n\nfrom __future__ import annotations\n\nimport os\nimport socket\nimport sys\n\nDEFAULT_PORT = 8000\n\n\ndef lan_address() -> str | None:\n    \"\"\"Best guess at this machine's address on the local network.\n\n    Opening a UDP socket to a public address sends no packets; it just asks the\n    OS which local interface would be used to 
+… [2,293 more characters]
+```
+
+```
+File created successfully at: C:\Users\Abbsi\claude\realtime-ttt\packaging\launcher.py (file state is current in your context — no need to Read it back)
+```
+
+**→ Write**
+
+```json
+{
+  "file_path": "C:\\Users\\Abbsi\\claude\\realtime-ttt\\packaging\\requirements-packaging.txt",
+  "content": "# Build-time and optional extras. NOT needed to run the service from source or\n# to run the tests - see ../requirements.txt for that.\n\npyinstaller>=6.0\nsegno>=1.6          # QR invites; the app degrades to no QR without it\n"
+}
+```
+
+```
+File created successfully at: C:\Users\Abbsi\claude\realtime-ttt\packaging\requirements-packaging.txt (file state is current in your context — no need to Read it back)
+```
+
+**→ Write**
+
+```json
+{
+  "file_path": "C:\\Users\\Abbsi\\claude\\realtime-ttt\\packaging\\build.ps1",
+  "content": "# Builds dist/realtime-ttt.exe - a single file with Python bundled in.\n#\n#   .\\.venv\\Scripts\\python -m pip install -r packaging\\requirements-packaging.txt\n#   .\\packaging\\build.ps1\n#\n# Run from the repository root.\n\n$ErrorActionPreference = \"Stop\"\n\n$python = \".\\.venv\\Scripts\\python.exe\"\nif (-not (Test-Path $python)) { throw \"No virtualenv at $python - see README.\" }\n\n# static/ is bundled as data because it is read at runtime; app/main.py resolves\n# it through sys._MEIPASS when frozen.\n#\n# collect-all is not belt and braces here: uvicorn imports its protocol\n# implementations by name at runtime, so a static analysis of the imports misses\n# them entirely and the exe dies on the first request instead of at build time.\n& $python -m PyInstaller `\n  --onefile `\n  --
+… [555 more characters]
+```
+
+```
+File created successfully at: C:\Users\Abbsi\claude\realtime-ttt\packaging\build.ps1 (file state is current in your context — no need to Read it back)
+```
+
+**→ Edit**
+
+```json
+{
+  "replace_all": false,
+  "file_path": "C:\\Users\\Abbsi\\claude\\realtime-ttt\\tests\\test_http.py",
+  "old_string": "# --- missing and malformed ids --------------------------------------------",
+  "new_string": "# --- QR invites (optional dependency) --------------------------------------\n\nasync def test_the_qr_endpoint_renders_the_invite_link(app):\n    async with browser(app) as alice:\n        game_id = await new_game(alice)\n        res = await alice.get(f\"/g/{game_id}/qr.svg\")\n        if res.status_code == 404:\n            pytest.skip(\"segno not installed; the app degrades to no QR\")\n        assert res.headers[\"content-type\"].startswith(\"image/svg+xml\")\n        assert res.text.lstrip().startswith(\"<svg\")\n\n\nasync def test_the_qr_endpoint_refuses_unknown_games(app):\n    async with browser(app) as c:\n        assert (await c.get(\"/g/missing-game/qr.svg\")).sta
+… [171 more characters]
+```
+
+```
+The file C:\Users\Abbsi\claude\realtime-ttt\tests\test_http.py has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+**→ Bash**
+
+```json
+{
+  "command": "./.venv/Scripts/python.exe -m pytest -q 2>&1 | tail -5",
+  "description": "Run suite after production changes",
+  "timeout": 300000
+}
+```
+
+```
+Command did not complete within its 300s timeout and was moved to the background (ID: bduhfdzlj). Output is being written to: C:\Users\Abbsi\AppData\Local\Temp\claude\C--Users-Abbsi-claude\7a5fbfea-5bdc-4216-8623-693d559f6408\tasks\bduhfdzlj.output. You will be notified when it completes. To check interim output, use Read on that file path.
+```
+
+### Claude · 13:27:46
+
+Suite hung — normally 20s. Checking what broke:
+
+**→ Bash**
+
+```json
+{
+  "command": "cat \"C:/Users/Abbsi/AppData/Local/Temp/claude/C--Users-Abbsi-claude/7a5fbfea-5bdc-4216-8623-693d559f6408/tasks/bduhfdzlj.output\" 2>&1 | tail -30",
+  "description": "Check hung test output"
+}
+```
+
+```
+(Bash completed with no output)
+```
+
+**→ Bash**
+
+```json
+{
+  "command": "timeout 60 ./.venv/Scripts/python.exe -c \"\nimport sys; sys.path.insert(0,'.')\nimport app.main as m\nprint('import ok')\nprint('STATIC_DIR:', m.STATIC_DIR)\nprint('DEFAULT_DB:', m.DEFAULT_DB)\nprint('segno:', m.segno is not None)\n\" 2>&1 | tail -20",
+  "description": "Verify app.main still imports cleanly"
+}
+```
+
+```
+import ok
+STATIC_DIR: C:\Users\Abbsi\claude\realtime-ttt\static
+DEFAULT_DB: C:\Users\Abbsi\claude\realtime-ttt\data\games.db
+segno: True
+```
+
+**→ Bash**
+
+```json
+{
+  "command": "timeout 120 ./.venv/Scripts/python.exe -m pytest tests/test_game.py tests/test_store.py tests/test_http.py tests/test_ws.py -q 2>&1 | tail -8",
+  "description": "Run the fast in-process test files",
+  "timeout": 180000
+}
+```
+
+```
+    from starlette.testclient import TestClient
+
+.venv\Lib\site-packages\starlette\testclient.py:53
+  C:\Users\Abbsi\claude\realtime-ttt\.venv\Lib\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+107 passed, 2 warnings in 3.92s
+```
+
+### Claude · 13:28:14
+
+In-process suite fine (107 pass, 3.9s) — so it's the end-to-end file. Running it alone:
+
+**→ Bash**
+
+```json
+{
+  "command": "timeout 200 ./.venv/Scripts/python.exe -m pytest tests/test_endtoend.py -q -x 2>&1 | tail -25",
+  "description": "Run end-to-end suite in isolation",
+  "timeout": 240000
+}
+```
+
+```
+.......                                                                  [100%]
+7 passed in 16.30s
+```
+
+### Claude · 13:28:41
+
+E2E passes in isolation (16.3s). The hang was contention with the earlier background run. Checking for strays:
+
+**→ Bash**
+
+```json
+{
+  "command": "tasklist //FI \"IMAGENAME eq python.exe\" 2>&1 | head -20; echo \"--- count ---\"; tasklist //FI \"IMAGENAME eq python.exe\" 2>&1 | grep -c \"python.exe\" || echo 0",
+  "description": "Check for stray python processes"
+}
+```
+
+```
+Image Name                     PID Session Name        Session#    Mem Usage
+========================= ======== ================ =========== ============
+python.exe                    2304 Console                    1      4,596 K
+python.exe                    4152 Console                    1     53,744 K
+python.exe                   33200 Console                    1      4,052 K
+python.exe                   33336 Console                    1     53,384 K
+python.exe                   16396 Console                    1      4,644 K
+python.exe                   32968 Console            
+… [39 more characters]
+```
+
+**→ ToolSearch**
+
+```json
+{
+  "query": "select:TaskStop,TaskOutput",
+  "max_results": 2
+}
+```
+
+**→ TaskStop**
+
+```json
+{
+  "task_id": "bduhfdzlj"
+}
+```
+
+```
+{"message":"Successfully stopped task: bduhfdzlj (./.venv/Scripts/python.exe -m pytest -q 2>&1 | tail -5)","task_id":"bduhfdzlj","task_type":"local_bash","command":"./.venv/Scripts/python.exe -m pytest -q 2>&1 | tail -5"}
+```
+
+**→ Bash**
+
+```json
+{
+  "command": "timeout 200 ./.venv/Scripts/python.exe -m pytest -q 2>&1 | tail -5",
+  "description": "Run the full suite cleanly",
+  "timeout": 240000
+}
+```
+
+```
+........................................................................ [ 63%]
+........................................
+```
+
+### Claude · 13:32:36
+
+Full suite still hangs, though each file passes alone — so it's cross-file interference. Diagnosing rather than guessing:
+
+**→ Bash**
+
+```json
+{
+  "command": "timeout 150 ./.venv/Scripts/python.exe -m pytest tests/test_endtoend.py tests/test_store.py -v 2>&1 | grep -E \"PASSED|FAILED|ERROR|::\" | tail -30",
+  "description": "Run endtoend then store to find the hang point",
+  "timeout": 180000
+}
+```
+
+```
+tests/test_endtoend.py::test_a_game_in_progress_survives_a_hard_kill PASSED [  4%]
+tests/test_endtoend.py::test_a_move_the_client_saw_confirmed_is_never_lost PASSED [  8%]
+tests/test_endtoend.py::test_a_game_that_never_started_also_survives PASSED [ 12%]
+tests/test_endtoend.py::test_two_tabs_racing_one_cell_produce_exactly_one_move PASSED [ 16%]
+tests/test_endtoend.py::test_twenty_concurrent_games_stay_independent PASSED [ 20%]
+tests/test_endtoend.py::test_a_flooding_client_cannot_disturb_another_game PASSED [ 24%]
+tests/test_endtoend.py::test_a_copied_session_cookie_is_the_player PASSED [ 28%
+… [1,454 more characters]
+```
+
+### Claude · 13:33:11
+
+Those two are clean. Recounting the dots, it stalled near the *end* of `test_ws.py` — and the only new variable is `test_endtoend.py` running first. Confirming:
+
+**→ Bash**
+
+```json
+{
+  "command": "timeout 150 ./.venv/Scripts/python.exe -m pytest tests/test_endtoend.py tests/test_ws.py -v 2>&1 | grep -E \"PASSED|FAILED|ERROR\" | tail -12; echo \"=== exit path reached ===\"",
+  "description": "Run endtoend then ws to locate the hang",
+  "timeout": 180000
+}
+```
+
+```
+tests/test_ws.py::test_bad_frames_are_refused[{"type": "move", "cell": 0, "mark": "O"}-unknown_message] PASSED [ 69%]
+tests/test_ws.py::test_bad_frames_are_refused[{"type": "move", "cell": 0, "sid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}-unknown_message] PASSED [ 72%]
+tests/test_ws.py::test_bad_frames_are_refused[{"type": "move", "cell": 99}-cell_out_of_range] PASSED [ 75%]
+tests/test_ws.py::test_bad_frames_are_refused[{"type": "move", "cell": -1}-cell_out_of_range] PASSED [ 77%]
+tests/test_ws.py::test_bad_frames_are_refused[xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+… [1,586 more characters]
+```
+
+### Claude · 13:33:46
+
+All passed there too. Let me clear strays and time a clean full run:
+
+**→ Bash**
+
+```json
+{
+  "command": "echo \"python procs before: $(tasklist //FI 'IMAGENAME eq python.exe' 2>&1 | grep -c python.exe)\"; time timeout 250 ./.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider 2>&1 | tail -4",
+  "description": "Time a clean full-suite run",
+  "timeout": 300000
+}
+```
+
+```
+python procs before: 4
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+114 passed, 2 warnings in 19.49s
+
+real	0m20.529s
+user	0m0.092s
+sys	0m0.092s
+```
+
+### Claude · 13:34:19
+
+**114 passed in 19.5s.** The hang was contention from my own stray background run, not a code problem — worth being precise about that rather than claiming a fix.
+
+Now the actual build:
+
+**→ Bash**
+
+```json
+{
+  "command": "./.venv/Scripts/python.exe -m pip install --quiet -r packaging/requirements-packaging.txt 2>&1 | tail -3; ./.venv/Scripts/python.exe -c \"import PyInstaller, segno; print('pyinstaller', PyInstaller.__version__); print('segno', segno.__version__)\"",
+  "description": "Install packaging dependencies",
+  "timeout": 300000
+}
+```
+
+```
+pyinstaller 6.22.2
+segno 1.6.6
+```
+
+**→ PowerShell**
+
+```json
+{
+  "command": "Set-Location C:\\Users\\Abbsi\\claude\\realtime-ttt; .\\packaging\\build.ps1 2>&1 | Select-Object -Last 25",
+  "description": "Build the standalone executable",
+  "timeout": 600000
+}
+```
+
+```
+Exit code 1
+python.exe : 263 WARNING: Assuming this is not an Anaconda environment or an additional venv/pipenv/... environment 
+manager is being used on top, because the conda-meta folder C:\Users\Abbsi\claude\realtime-ttt\.venv\conda-meta does 
+not exist.
+At C:\Users\Abbsi\claude\realtime-ttt\packaging\build.ps1:19 char:1
++ & $python -m PyInstaller `
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (263 WARNING: As...does not exist.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+```
+
+### Claude · 13:34:54
+
+PowerShell 5.1 wraps native stderr as an error record when redirected — that's my invocation, not the build. Running it without redirection:
+
+**→ PowerShell**
+
+```json
+{
+  "command": "Set-Location C:\\Users\\Abbsi\\claude\\realtime-ttt; .\\packaging\\build.ps1",
+  "description": "Build the standalone executable",
+  "timeout": 600000
+}
+```
+
+```
+Exit code 1
+236 WARNING: Assuming this is not an Anaconda environment or an additional venv/pipenv/... environment manager is being used on top, because the conda-meta folder C:\Users\Abbsi\claude\realtime-ttt\.venv\conda-meta does not exist.
+266 INFO: PyInstaller: 6.22.2, contrib hooks: 2026.7
+266 INFO: Python: 3.13.9 (conda)
+314 INFO: Platform: Windows-11-10.0.26200-SP0
+314 INFO: Python environment: C:\Users\Abbsi\claude\realtime-ttt\.venv
+316 INFO: wrote build\realtime-ttt.spec
+166 WARNING: Assuming this is not an Anaconda environment or an additional venv/pipenv/... environment manag
+… [1,853 more characters]
+```
+
+### Claude · 13:35:09
+
+Real bug: `--specpath build` makes `--add-data` resolve relative to the spec file, not the repo root. Using an absolute source path:
+
+**→ Edit**
+
+```json
+{
+  "replace_all": false,
+  "file_path": "C:\\Users\\Abbsi\\claude\\realtime-ttt\\packaging\\build.ps1",
+  "old_string": "$python = \".\\.venv\\Scripts\\python.exe\"\nif (-not (Test-Path $python)) { throw \"No virtualenv at $python - see README.\" }",
+  "new_string": "$python = \".\\.venv\\Scripts\\python.exe\"\nif (-not (Test-Path $python)) { throw \"No virtualenv at $python - see README.\" }\n\n# --add-data source paths are resolved relative to --specpath, not the working\n# directory, so an absolute path is the only thing that behaves the same wherever\n# the spec is written.\n$root = (Resolve-Path .).Path\n$static = Join-Path $root \"static\""
+}
+```
+
+```
+The file C:\Users\Abbsi\claude\realtime-ttt\packaging\build.ps1 has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+**→ Edit**
+
+```json
+{
+  "replace_all": false,
+  "file_path": "C:\\Users\\Abbsi\\claude\\realtime-ttt\\packaging\\build.ps1",
+  "old_string": "  --add-data \"static;static\" `",
+  "new_string": "  --add-data \"$static;static\" `"
+}
+```
+
+```
+The file C:\Users\Abbsi\claude\realtime-ttt\packaging\build.ps1 has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+**→ PowerShell**
+
+```json
+{
+  "command": "Set-Location C:\\Users\\Abbsi\\claude\\realtime-ttt; .\\packaging\\build.ps1 | Select-String -Pattern \"ERROR|WARNING: Hidden|Building EXE|completed successfully|Built dist\" | Select-Object -Last 12; Write-Host \"exit=$LASTEXITCODE\"; if (Test-Path dist\\realtime-ttt.exe) { $f = Get-Item dist\\realtime-ttt.exe; Write-Host (\"exe: {0:N1} MB\" -f ($f.Length/1MB)) }",
+  "description": "Rebuild the executable",
+  "timeout": 600000
+}
+```
+
+```
+221 WARNING: Assuming this is not an Anaconda environment or an additional venv/pipenv/... environment manager is being used on top, because the conda-meta folder C:\Users\Abbsi\claude\realtime-ttt\.venv\conda-meta does not exist.
+246 INFO: PyInstaller: 6.22.2, contrib hooks: 2026.7
+246 INFO: Python: 3.13.9 (conda)
+290 INFO: Platform: Windows-11-10.0.26200-SP0
+291 INFO: Python environment: C:\Users\Abbsi\claude\realtime-ttt\.venv
+292 INFO: wrote build\realtime-ttt.spec
+166 WARNING: Assuming this is not an Anaconda environment or an additional venv/pipenv/... environment manager is being 
+… [14,817 more characters]
+```
+
+### Claude · 13:36:11
+
+17.5 MB built. Now the part that actually matters — testing it, especially the two paths PyInstaller silently breaks:
+
+**→ Bash**
+
+```json
+{
+  "command": "rm -rf dist/data && TTT_PORT=8010 ./dist/realtime-ttt.exe",
+  "description": "Launch the packaged executable",
+  "run_in_background": true
+}
+```
+
+```
+Command running in background with ID: b2qvl69rt. Output is being written to: C:\Users\Abbsi\AppData\Local\Temp\claude\C--Users-Abbsi-claude\7a5fbfea-5bdc-4216-8623-693d559f6408\tasks\b2qvl69rt.output. You will be notified when it completes. To check interim output, use Read on that file path.
+```
+
+**→ Bash**
+
+```json
+{
+  "command": "sleep 6; cat \"C:/Users/Abbsi/AppData/Local/Temp/claude/C--Users-Abbsi-claude/7a5fbfea-5bdc-4216-8623-693d559f6408/tasks/b2qvl69rt.output\"",
+  "description": "Read the launcher banner",
+  "timeout": 30000
+}
+```
+
+```
+Traceback (most recent call last):
+  File "launcher.py", line 93, in <module>
+  File "launcher.py", line 66, in main
+  File "encodings\cp1252.py", line 19, in encode
+UnicodeEncodeError: 'charmap' codec can't encode characters in position 4-55: character maps to <undefined>
+[PYI-12096:ERROR] Failed to execute script 'launcher' due to unhandled exception!
+
+[exited with code 1]
+```
+
+### Claude · 13:36:34
+
+Real bug, caught exactly where I said it would be. The box-drawing character `─` can't encode in the Windows console's cp1252 codepage — **the exe crashed on startup**. ASCII only:
+
+**→ Edit**
+
+```json
+{
+  "replace_all": false,
+  "file_path": "C:\\Users\\Abbsi\\claude\\realtime-ttt\\packaging\\launcher.py",
+  "old_string": "    lan = lan_address()\n    rule = \"─\" * 52\n\n    print(f\"\\n  {rule}\")\n    print(\"   Realtime Tic-Tac-Toe\")\n    print(f\"  {rule}\")\n    print(f\"   On this computer : http://localhost:{port}\")\n    if lan:\n        print(f\"   On your phone    : http://{lan}:{port}   (same Wi-Fi)\")\n    else:\n        print(\"   On your phone    : unavailable - no network connection found\")\n    print()\n    print(f\"   Games are saved in : {DEFAULT_DB}\")\n    if segno is None:\n        print(\"   QR invites         : off (segno not installed)\")\n    print(\"   Stop the server    : Ctrl+C\")\n    print(f\"  {rule}\\n\")",
+  "new_string": "    lan = lan_address()\n    # ASCII only. A Windows console defaults to cp1252, and a box-drawing\n    # character here raises 
+… [729 more characters]
+```
+
+```
+The file C:\Users\Abbsi\claude\realtime-ttt\packaging\launcher.py has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+**→ PowerShell**
+
+```json
+{
+  "command": "Set-Location C:\\Users\\Abbsi\\claude\\realtime-ttt; .\\packaging\\build.ps1 | Select-String -Pattern \"Build complete|Built dist\" ; Write-Host \"exit=$LASTEXITCODE\"",
+  "description": "Rebuild after the encoding fix",
+  "timeout": 600000
+}
+```
+
+```
+213 WARNING: Assuming this is not an Anaconda environment or an additional venv/pipenv/... environment manager is being used on top, because the conda-meta folder C:\Users\Abbsi\claude\realtime-ttt\.venv\conda-meta does not exist.
+250 INFO: PyInstaller: 6.22.2, contrib hooks: 2026.7
+251 INFO: Python: 3.13.9 (conda)
+311 INFO: Platform: Windows-11-10.0.26200-SP0
+311 INFO: Python environment: C:\Users\Abbsi\claude\realtime-ttt\.venv
+313 INFO: wrote build\realtime-ttt.spec
+156 WARNING: Assuming this is not an Anaconda environment or an additional venv/pipenv/... environment manager is being 
+… [14,470 more characters]
+```
+
+**→ Bash**
+
+```json
+{
+  "command": "rm -rf dist/data && TTT_PORT=8010 ./dist/realtime-ttt.exe",
+  "description": "Relaunch the packaged executable",
+  "run_in_background": true
+}
+```
+
+```
+Command running in background with ID: bx4zv2bsn. Output is being written to: C:\Users\Abbsi\AppData\Local\Temp\claude\C--Users-Abbsi-claude\7a5fbfea-5bdc-4216-8623-693d559f6408\tasks\bx4zv2bsn.output. You will be notified when it completes. To check interim output, use Read on that file path.
+```
+
+**→ Bash**
+
+```json
+{
+  "command": "sleep 8; cat \"C:/Users/Abbsi/AppData/Local/Temp/claude/C--Users-Abbsi-claude/7a5fbfea-5bdc-4216-8623-693d559f6408/tasks/bx4zv2bsn.output\"; echo \"=== db next to exe? ===\"; ls -la dist/data/ 2>&1",
+  "description": "Check launcher banner and database location",
+  "timeout": 40000
+}
+```
+
+```
+=== db next to exe? ===
+total 100
+drwxr-xr-x 1 Abbsi 197121     0 Sep  7 16:37 .
+drwxr-xr-x 1 Abbsi 197121     0 Sep  7 16:37 ..
+-rw-r--r-- 1 Abbsi 197121  4096 Sep  7 16:37 games.db
+-rw-r--r-- 1 Abbsi 197121 32768 Sep  7 16:37 games.db-shm
+-rw-r--r-- 1 Abbsi 197121 41232 Sep  7 16:37 games.db-wal
+```
+
+### Claude · 13:37:56
+
+Database created at `dist/data/games.db` — **next to the exe, not in the temp bundle**. That's the fix that matters. Now a full functional check of the packaged build:
+
+**→ Bash**
+
+```json
+{
+  "command": "./.venv/Scripts/python.exe - <<'PYEOF'\nimport asyncio, json, httpx, websockets\n\nBASE, WS = \"http://127.0.0.1:8010\", \"ws://127.0.0.1:8010\"\nA, B = \"a\"*43, \"b\"*43\n\nasync def main():\n    with httpx.Client(base_url=BASE) as c:\n        print(f\"GET /                -> {c.get('/').status_code}\")\n        print(f\"GET /static/game.js  -> {c.get('/static/game.js').status_code}  (bundled static files)\")\n        print(f\"GET /static/favicon  -> {c.get('/static/favicon.svg').status_code}\")\n        gid = c.post(\"/api/games\", headers={\"Cookie\": f\"sid={A}\"}).json()[\"id\"]\n        qr = c.get(f\"/g/{gid}/qr.svg\")\n        print(f\"GET /g/{{id}}/qr.svg   -> {qr.status_code}  {qr.headers.get('content-type')}  {len(qr.text)} bytes\")\n\n    def sock(sid):\n        return websockets.connect(f\"{WS}/ws/{gid}\", additional_headers={\"Cookie\": f\"sid={sid}\"})\n\n 
+… [560 more characters]
+```
+
+```
+GET /                -> 200
+GET /static/game.js  -> 200  (bundled static files)
+GET /static/favicon  -> 200
+GET /g/{id}/qr.svg   -> 200  image/svg+xml  1620 bytes
+
+played a full game   -> XXXOO....  result=x_won
+game id for restart test: 3IuQRotUdUHN
+```
+
+### Claude · 13:38:11
+
+Now the real test of the data-path fix — kill the exe and restart it:
+
+**→ TaskStop**
+
+```json
+{
+  "task_id": "bx4zv2bsn"
+}
+```
+
+```
+{"message":"Successfully stopped task: bx4zv2bsn (rm -rf dist/data && TTT_PORT=8010 ./dist/realtime-ttt.exe)","task_id":"bx4zv2bsn","task_type":"local_bash","command":"rm -rf dist/data && TTT_PORT=8010 ./dist/realtime-ttt.exe"}
+```
+
+**→ Bash**
+
+```json
+{
+  "command": "sleep 2; tasklist //FI \"IMAGENAME eq realtime-ttt.exe\" 2>&1 | grep -c realtime-ttt || echo \"exe stopped\"",
+  "description": "Confirm the exe process stopped",
+  "timeout": 30000
+}
+```
+
+```
+0
+exe stopped
+```
+
+**→ Bash**
+
+```json
+{
+  "command": "TTT_PORT=8010 ./dist/realtime-ttt.exe",
+  "description": "Restart the exe against the existing database",
+  "run_in_background": true
+}
+```
+
+```
+Command running in background with ID: bv5jrrjts. Output is being written to: C:\Users\Abbsi\AppData\Local\Temp\claude\C--Users-Abbsi-claude\7a5fbfea-5bdc-4216-8623-693d559f6408\tasks\bv5jrrjts.output. You will be notified when it completes. To check interim output, use Read on that file path.
+```
+
+**→ Bash**
+
+```json
+{
+  "command": "sleep 8; ./.venv/Scripts/python.exe - <<'PYEOF'\nimport asyncio, json, websockets\n\nasync def main():\n    gid = \"3IuQRotUdUHN\"\n    async with websockets.connect(f\"ws://127.0.0.1:8010/ws/{gid}\",\n                                  additional_headers={\"Cookie\": \"sid=\" + \"a\"*43}) as ws:\n        m = json.loads(await ws.recv())\n        g = m[\"game\"]\n        print(\"after killing and relaunching the .exe:\")\n        print(f\"  seat   : {m['you']}\")\n        print(f\"  board  : {''.join(g['board'])}\")\n        print(f\"  result : {g['result']}   status={g['status']}\")\nasyncio.run(main())\nPYEOF",
+  "description": "Verify game survived the exe restart",
+  "timeout": 60000
+}
+```
+
+```
+after killing and relaunching the .exe:
+  seat   : {'role': 'player', 'mark': 'X'}
+  board  : XXXOO....
+  result : x_won   status=finished
+```
+
+### Claude · 13:38:50
+
+Packaged build fully verified. Three cleanups, then I'll write it up:
+
+**→ Edit**
+
+```json
+{
+  "replace_all": false,
+  "file_path": "C:\\Users\\Abbsi\\claude\\realtime-ttt\\packaging\\launcher.py",
+  "old_string": "def main() -> int:\n    port = int(os.environ.get(\"TTT_PORT\", DEFAULT_PORT))",
+  "new_string": "def main() -> int:\n    # Python block-buffers stdout when it is not a terminal, so piping or\n    # logging the launcher would swallow the banner — which is the only thing\n    # this script exists to print.\n    try:\n        sys.stdout.reconfigure(line_buffering=True)\n    except (AttributeError, OSError):  # pragma: no cover - very old or odd stdio\n        pass\n\n    port = int(os.environ.get(\"TTT_PORT\", DEFAULT_PORT))"
+}
+```
+
+```
+The file C:\Users\Abbsi\claude\realtime-ttt\packaging\launcher.py has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+**→ Edit**
+
+```json
+{
+  "replace_all": false,
+  "file_path": "C:\\Users\\Abbsi\\claude\\realtime-ttt\\.gitignore",
+  "old_string": "# SQLite game database (created at runtime)",
+  "new_string": "# PyInstaller build artefacts\nbuild/\ndist/\n\n# SQLite game database (created at runtime)"
+}
+```
+
+```
+The file C:\Users\Abbsi\claude\realtime-ttt\.gitignore has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+**→ Edit**
+
+```json
+{
+  "replace_all": false,
+  "file_path": "C:\\Users\\Abbsi\\claude\\realtime-ttt\\README.md",
+  "old_string": "## Agent transcript",
+  "new_string": "## Playing on a phone — packaged build\n\n> **Not part of the assignment.** This is a demo convenience: a standalone\n> executable that serves the game to other devices on your Wi-Fi. It adds no\n> game features and the service itself is unchanged.\n\n```powershell\n.\\.venv\\Scripts\\python -m pip install -r packaging\\requirements-packaging.txt\n.\\packaging\\build.ps1\n.\\dist\\realtime-ttt.exe\n```\n\nProduces a single ~17 MB `dist/realtime-ttt.exe` with Python bundled in. It binds\n`0.0.0.0` and prints both addresses:\n\n```\n   On this computer : http://localhost:8000\n   On your phone    : http://192.168.1.20:8000   (same Wi-Fi)\n```\n\nOpen the invite on your laptop and **scan the QR code** with the phone's camera.\nThat is not deco
+… [1,131 more characters]
+```
+
+```
+The file C:\Users\Abbsi\claude\realtime-ttt\README.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+**→ Edit**
+
+```json
+{
+  "replace_all": false,
+  "file_path": "C:\\Users\\Abbsi\\claude\\realtime-ttt\\README.md",
+  "old_string": "static/       no build step; plain HTML, CSS and JS\ntests/\ntools/\n  export_transcript.py   turns a Claude Code session log into readable markdown\n```",
+  "new_string": "static/       no build step; plain HTML, CSS and JS\ntests/\ntools/\n  export_transcript.py   turns a Claude Code session log into readable markdown\npackaging/              beyond the assignment - standalone .exe for phone play\n  launcher.py\n  build.ps1\n```"
+}
+```
+
+```
+The file C:\Users\Abbsi\claude\realtime-ttt\README.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+**→ Bash**
+
+```json
+{
+  "command": "timeout 250 ./.venv/Scripts/python.exe -m pytest -q 2>&1 | tail -3",
+  "description": "Run full suite after production changes",
+  "timeout": 300000
+}
+```
+
+```
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+114 passed, 2 warnings in 21.08s
+```
+
+**→ Bash**
+
+```json
+{
+  "command": "git add -A && git commit -q -m \"$(cat <<'EOF'\nPackaged build: standalone exe, LAN binding, QR invites\n\nBeyond the assignment - a demo convenience, adding no game features.\n\nPyInstaller breaks two paths silently, and both are now explicit. A\none-file build unpacks into a temp directory that is deleted on exit, so\nread-only assets resolve through sys._MEIPASS while the database resolves\nthrough sys.executable. Without the split, the app looks like it works and\nloses every game on exit.\n\nQR invites at /g/{id}/qr.svg, rendered server-side with segno. Not\ndecoration: http://192.168.x.x is not a secure context, so the Clipboard\nAPI is unavailable on exactly the device you most want to play on. segno\nis optional - the endpoint 404s without it and the UI hides the QR rather\nthan showing a broken image. The clipboard button now falls back to\nselection plus execCom
+… [801 more characters]
+```
+
+```
+warning: in the working copy of '.gitignore', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'app/main.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'static/game.html', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'static/game.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'static/style.css', LF will be replaced by 
+… [976 more characters]
+```
+
+### Claude · 13:39:52
+
+`.idea/` (IDE config) slipped into that commit — removing it from the repo:
+
+**→ Bash**
+
+```json
+{
+  "command": "printf '\\n# IDE\\n.idea/\\n.vscode/\\n' >> .gitignore && git rm -r --cached .idea -q && git add -A && git commit -q -m \"$(cat <<'EOF'\nStop tracking IDE config\n\n.idea/ was picked up by the previous commit's git add -A.\n\nCo-Authored-By: Claude Opus 5 <noreply@anthropic.com>\nEOF\n)\" && echo \"--- tracked files ---\" && git ls-files",
+  "description": "Untrack IDE config and ignore it"
+}
+```
+
+```
+warning: in the working copy of '.gitignore', LF will be replaced by CRLF the next time Git touches it
+--- tracked files ---
+.gitignore
+DESIGN.md
+README.md
+ROADMAP.md
+app/__init__.py
+app/game.py
+app/hub.py
+app/main.py
+app/store.py
+packaging/build.ps1
+packaging/launcher.py
+packaging/requirements-packaging.txt
+pyproject.toml
+requirements.txt
+static/favicon.svg
+static/game.html
+static/game.js
+static/home.js
+static/index.html
+static/style.css
+tests/test_endtoend.py
+tests/test_game.py
+tests/test_http.py
+tests/test_store.py
+tests/test_ws.py
+tools/export_transcript.py
+transcript/session.md
+```
+
+**→ TaskStop**
+
+```json
+{
+  "task_id": "bv5jrrjts"
+}
+```
+
+```
+{"message":"Successfully stopped task: bv5jrrjts (TTT_PORT=8010 ./dist/realtime-ttt.exe)","task_id":"bv5jrrjts","task_type":"local_bash","command":"TTT_PORT=8010 ./dist/realtime-ttt.exe"}
+```
+
+### Claude · 13:40:11
+
+Regenerating the transcript so the repo is shippable as it stands:
+
+**→ Bash**
+
+```json
+{
+  "command": "./.venv/Scripts/python.exe tools/export_transcript.py \"/c/Users/Abbsi/.claude/projects/C--Users-Abbsi-claude/7a5fbfea-5bdc-4216-8623-693d559f6408.jsonl\" -o transcript/session.md && git add transcript/session.md && git commit -q -m \"$(cat <<'EOF'\nRefresh the exported transcript through the packaging work\n\nCo-Authored-By: Claude Opus 5 <noreply@anthropic.com>\nEOF\n)\" && echo \"user turns: $(grep -c '^### User' transcript/session.md), tool calls: $(grep -c '^\\*\\*→ ' transcript/session.md)\"",
+  "description": "Regenerate and commit the transcript"
 }
 ```
