@@ -40,6 +40,7 @@ let attempt = 0;
 let live = false;
 let stopped = false;   // fatal error: do not reconnect
 let flashTimer = null;
+let reconnectTimer = null;
 
 const cells = [];
 const POSITIONS = ["top left", "top centre", "top right",
@@ -256,16 +257,33 @@ function handle(message) {
 }
 
 function connect() {
-  socket = new WebSocket(socketUrl());
+  // Any pending backoff is superseded by connecting now, and a socket that is
+  // already open or still handshaking must not be replaced — otherwise a nudge
+  // landing during a backoff opens a second socket, and the orphaned first one
+  // keeps scheduling reconnects of its own.
+  clearTimeout(reconnectTimer);
+  reconnectTimer = null;
+  if (
+    socket &&
+    (socket.readyState === WebSocket.CONNECTING ||
+      socket.readyState === WebSocket.OPEN)
+  ) {
+    return;
+  }
 
-  socket.addEventListener("open", () => {
+  const ws = new WebSocket(socketUrl());
+  socket = ws;
+
+  ws.addEventListener("open", () => {
+    if (socket !== ws) return;
     live = true;
     attempt = 0;
     banner(null);
     render();
   });
 
-  socket.addEventListener("message", (event) => {
+  ws.addEventListener("message", (event) => {
+    if (socket !== ws) return;
     let message;
     try {
       message = JSON.parse(event.data);
@@ -275,7 +293,8 @@ function connect() {
     handle(message);
   });
 
-  socket.addEventListener("close", () => {
+  ws.addEventListener("close", () => {
+    if (socket !== ws) return; // a superseded attempt closing late
     live = false;
     pending = null;
     render();
@@ -286,7 +305,7 @@ function connect() {
     const delay = Math.min(500 * 2 ** attempt, RECONNECT_CAP_MS);
     attempt += 1;
     banner("Connection lost — reconnecting…");
-    setTimeout(connect, delay + Math.random() * 250);
+    reconnectTimer = setTimeout(connect, delay + Math.random() * 250);
   });
 }
 
