@@ -15,12 +15,12 @@ import secrets
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal, Union
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
 
 try:  # optional: only needed for the QR invite, see requirements-packaging.txt
     import segno
@@ -92,6 +92,8 @@ ERROR_MESSAGES = {
     "cell_out_of_range": "That is not a square.",
     "game_over": "This game is already finished.",
     "game_not_started": "Still waiting for an opponent.",
+    "game_not_finished": "This game is still in play.",
+    "already_requested": "You have already asked for a rematch.",
     "unknown_mark": "Unrecognised mark.",
     "malformed_json": "That was not JSON.",
     "unknown_message": "Unrecognised message.",
@@ -100,9 +102,7 @@ ERROR_MESSAGES = {
 
 
 class MoveMessage(BaseModel):
-    """The entire client vocabulary. There are no other messages.
-
-    `strict=True` so `true` does not become cell 1 and `"0"` does not become
+    """`strict=True` so `true` does not become cell 1 and `"0"` does not become
     cell 0 — lenient parsing is how an adversarial input becomes a legal move.
 
     `extra="forbid"` so there is no field in which to smuggle an identity.
@@ -115,6 +115,21 @@ class MoveMessage(BaseModel):
 
     type: Literal["move"]
     cell: int
+
+
+class RematchMessage(BaseModel):
+    """Carries nothing. Who is asking comes from the session, as ever."""
+
+    model_config = ConfigDict(strict=True, extra="forbid")
+
+    type: Literal["rematch"]
+
+
+# The entire client vocabulary: two messages, discriminated on `type`, both
+# forbidding extra fields.
+CLIENT_MESSAGE = TypeAdapter(
+    Annotated[Union[MoveMessage, RematchMessage], Field(discriminator="type")]
+)
 
 
 async def _error(websocket: WebSocket, code: str) -> None:
@@ -283,14 +298,17 @@ def create_app(db_path: str | Path | None = None) -> FastAPI:
         except json.JSONDecodeError:
             return await _error(websocket, "malformed_json")
         try:
-            message = MoveMessage.model_validate(payload)
+            message = CLIENT_MESSAGE.validate_python(payload)
         except ValidationError:
             return await _error(websocket, "unknown_message")
 
         # The seat is resolved from the session on *every* message, not read
         # from the connection. A role captured at connect time is a cached copy
         # of authority, and this is the one place that must not be stale.
-        outcome = await app.state.store.play(game_id, sid, message.cell)
+        if isinstance(message, RematchMessage):
+            outcome = await app.state.store.request_rematch(game_id, sid)
+        else:
+            outcome = await app.state.store.play(game_id, sid, message.cell)
         if isinstance(outcome, Rejected):
             # Refusals go to the offender only. Nobody else needs to know that
             # someone tried something.

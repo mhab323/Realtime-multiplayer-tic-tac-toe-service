@@ -61,6 +61,8 @@ class Rejection(str, Enum):
     CELL_TAKEN = "cell_taken"
     CELL_OUT_OF_RANGE = "cell_out_of_range"
     UNKNOWN_MARK = "unknown_mark"
+    GAME_NOT_FINISHED = "game_not_finished"
+    ALREADY_REQUESTED = "already_requested"
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,6 +80,11 @@ class GameState:
     result: Result | None = None
     winning_line: tuple[int, int, int] | None = None
     version: int = 0
+    # Rounds count games played on this link. Odd rounds start X, even start O,
+    # so a rematch does not hand the same player the first-move advantage twice.
+    round: int = 1
+    # Which marks have asked for a rematch. Both, and a new round begins.
+    rematch: frozenset[str] = frozenset()
 
     def as_dict(self) -> dict:
         """Wire representation. The only shape clients ever see."""
@@ -89,6 +96,8 @@ class GameState:
             "result": self.result.value if self.result else None,
             "winning_line": list(self.winning_line) if self.winning_line else None,
             "version": self.version,
+            "round": self.round,
+            "rematch": sorted(self.rematch),
         }
 
 
@@ -127,6 +136,46 @@ def start(state: GameState) -> GameState:
     if state.status is not Status.WAITING:
         return state
     return replace(state, status=Status.IN_PROGRESS, version=state.version + 1)
+
+
+def starting_mark(round_number: int) -> Mark:
+    """Odd rounds start X, even start O."""
+    return "X" if round_number % 2 == 1 else "O"
+
+
+def request_rematch(state: GameState, mark: str) -> MoveOutcome:
+    """Record one player's request for a rematch; start a new round on the second.
+
+    Consent is mutual on purpose. A one-sided reset would let the loser wipe the
+    board out from under a winner who was still looking at it.
+
+    Seats do not change hands — a session that was X stays X, so nobody's
+    identity shifts underneath them. Fairness comes from alternating who moves
+    first, which is a property of the round number rather than of the seats.
+    """
+    if mark not in MARKS:
+        return MoveRejected(Rejection.UNKNOWN_MARK)
+    if state.status is not Status.FINISHED:
+        return MoveRejected(Rejection.GAME_NOT_FINISHED)
+    if mark in state.rematch:
+        return MoveRejected(Rejection.ALREADY_REQUESTED)
+
+    votes = state.rematch | {mark}
+    if votes != set(MARKS):
+        return MoveAccepted(replace(state, rematch=votes, version=state.version + 1))
+
+    round_number = state.round + 1
+    return MoveAccepted(replace(
+        state,
+        board=(EMPTY,) * BOARD_CELLS,
+        turn=starting_mark(round_number),
+        status=Status.IN_PROGRESS,
+        result=None,
+        winning_line=None,
+        round=round_number,
+        rematch=frozenset(),
+        version=state.version + 1,
+    ))
 
 
 def winning_line_for(board: tuple[str, ...], mark: str) -> tuple[int, int, int] | None:

@@ -30,6 +30,9 @@ const el = {
   copy: document.getElementById("copy"),
   inviteQr: document.getElementById("invite-qr"),
   qr: document.getElementById("qr"),
+  endgame: document.getElementById("endgame"),
+  rematch: document.getElementById("rematch"),
+  rematchNote: document.getElementById("rematch-note"),
 };
 
 // The QR endpoint is optional — segno may not be installed. Reveal the block
@@ -149,9 +152,14 @@ function render() {
   renderChip(el.chipO, el.whoO, "O");
 
   const watching = presence.spectators;
-  el.watchers.textContent = watching
-    ? `${watching} ${watching === 1 ? "person is" : "people are"} watching`
-    : "";
+  const parts = [];
+  if (game.round > 1) parts.push(`Round ${game.round}`);
+  if (watching) {
+    parts.push(`${watching} ${watching === 1 ? "person" : "people"} watching`);
+  }
+  el.watchers.textContent = parts.join(" · ");
+
+  renderEndgame();
 
   const winning = game.winning_line || [];
   cells.forEach((cell, i) => {
@@ -194,6 +202,35 @@ function render() {
     el.qr.src = `/g/${GAME_ID}/qr.svg`;
   }
 }
+
+function renderEndgame() {
+  const offer = game.status === "finished" && you.role === "player";
+  el.endgame.hidden = !offer;
+  if (!offer) return;
+
+  const mine = game.rematch.includes(you.mark);
+  const theirs = game.rematch.includes(opponentMark());
+
+  el.rematch.disabled = mine || !live;
+  el.rematch.textContent = mine
+    ? "Waiting…"
+    : theirs
+      ? "Accept rematch"
+      : "Rematch";
+  el.rematchNote.textContent = mine
+    ? "Waiting for your opponent"
+    : theirs
+      ? `${opponentMark()} wants a rematch`
+      : "";
+}
+
+el.rematch.addEventListener("click", () => {
+  // Same shape as a move: ask, and let the server decide. The button state is
+  // a hint; the server refuses a rematch on an unfinished game regardless.
+  if (el.rematch.disabled) return;
+  hideFlash();
+  send({ type: "rematch" });
+});
 
 function flash(message) {
   el.flash.textContent = message;

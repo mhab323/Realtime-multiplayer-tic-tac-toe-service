@@ -23,7 +23,9 @@ from app.game import (
     apply_move,
     new_game,
     other,
+    request_rematch,
     start,
+    starting_mark,
     winning_line_for,
 )
 
@@ -230,3 +232,81 @@ def test_as_dict_is_json_safe():
     assert payload["board"] == ["X", "X", "X", "O", "O", ".", ".", ".", "."]
     import json
     json.dumps(payload)  # must not raise
+
+
+# --- rematch ---------------------------------------------------------------
+
+def expect_rejected_rematch(state, mark, reason: Rejection) -> None:
+    outcome = request_rematch(state, mark)
+    assert isinstance(outcome, MoveRejected), f"expected rejected, got {outcome}"
+    assert outcome.reason is reason
+
+
+def finished_game(round_number: int = 1) -> GameState:
+    state = dataclasses.replace(
+        playable(turn=starting_mark(round_number), version=1), round=round_number
+    )
+    mark, opponent = state.turn, other(state.turn)
+    for cell, who in [(0, mark), (3, opponent), (1, mark), (4, opponent), (2, mark)]:
+        state = accept(state, who, cell)
+    assert state.status is Status.FINISHED
+    return state
+
+
+def test_no_rematch_while_the_game_is_still_being_played():
+    expect_rejected_rematch(playable(), "X", Rejection.GAME_NOT_FINISHED)
+    expect_rejected_rematch(new_game("abc"), "X", Rejection.GAME_NOT_FINISHED)
+
+
+def test_one_request_does_not_reset_the_board():
+    """Consent is mutual: a loser must not wipe the board out from under a winner."""
+    finished = finished_game()
+    outcome = request_rematch(finished, "O")
+    assert isinstance(outcome, MoveAccepted)
+    assert outcome.state.status is Status.FINISHED
+    assert outcome.state.board == finished.board
+    assert outcome.state.rematch == {"O"}
+    assert outcome.state.round == 1
+
+
+def test_asking_twice_is_refused():
+    once = request_rematch(finished_game(), "O").state
+    expect_rejected_rematch(once, "O", Rejection.ALREADY_REQUESTED)
+
+
+def test_both_requests_start_a_new_round():
+    state = request_rematch(finished_game(), "X").state
+    state = request_rematch(state, "O").state
+
+    assert state.status is Status.IN_PROGRESS
+    assert state.board == (EMPTY,) * BOARD_CELLS
+    assert state.result is None
+    assert state.winning_line is None
+    assert state.rematch == frozenset()
+    assert state.round == 2
+
+
+def test_the_first_move_alternates_between_rounds():
+    """X starts round 1, so O must start round 2, or X keeps the advantage."""
+    assert starting_mark(1) == "X"
+    assert starting_mark(2) == "O"
+
+    state = request_rematch(finished_game(round_number=1), "X").state
+    assert request_rematch(state, "O").state.turn == "O"
+
+    state = request_rematch(finished_game(round_number=2), "X").state
+    assert request_rematch(state, "O").state.turn == "X"
+
+
+def test_a_rematch_never_reassigns_a_seat():
+    """Nothing in the pure state names a session, so there is nothing to swap."""
+    before = finished_game()
+    state = request_rematch(before, "X").state
+    state = request_rematch(state, "O").state
+    assert state.id == before.id
+    assert set(state.as_dict()) == set(before.as_dict())
+
+
+@pytest.mark.parametrize("mark", ["Z", "", None, 1])
+def test_unknown_marks_cannot_request_a_rematch(mark):
+    expect_rejected_rematch(finished_game(), mark, Rejection.UNKNOWN_MARK)

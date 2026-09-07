@@ -202,6 +202,16 @@ h1 { margin: 0; font-size: 20px; letter-spacing: -.01em; }
   border-radius: 9px;
 }
 
+.endgame { margin-top: 16px; }
+.endgame .muted { min-height: 1.4em; }
+
+.round {
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+
 .invite-qr { margin-top: 14px; }
 
 /* White plate behind the QR in both themes: contrast is what makes it scan. */

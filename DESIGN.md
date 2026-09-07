@@ -97,6 +97,34 @@ broadcast would leave a window of microseconds that a kill would essentially
 never land in. The ordering guarantee comes from the code structure — one
 function, that order, no path around it — not from the test.
 
+## Rematch
+
+Consent is mutual: one request records a vote, the second starts a new round. A
+one-sided reset would let a loser wipe the board out from under a winner who was
+still looking at it.
+
+**Seats do not change hands.** A session that was X stays X, so nobody's identity
+shifts underneath them and no client has to be told its role changed. Fairness
+comes instead from a `round` counter — odd rounds start X, even start O — so the
+first-move advantage alternates without touching the seat table.
+
+*Rejected:* **swapping marks between the seats.** The conventional way to alternate,
+but it means rewriting two seat rows that a primary key and a unique constraint both
+guard, and then pushing a per-connection message to tell each client its mark
+changed. A round counter buys the same fairness with one integer.
+
+Rematch votes live on the game row, not in memory, so a request survives a refresh
+or a restart mid-negotiation. That required adding two columns, which is where the
+real lesson is: `CREATE TABLE IF NOT EXISTS` does nothing to an existing table, so
+a schema change alone would have broken every stored game — in a service whose main
+claim is that games survive restarts. `GameStore._migrate()` reads `PRAGMA
+table_info` and backfills what is missing, and a test opens a database written to
+the old schema and plays a move on it.
+
+The reset also fixed an assumption flagged earlier: the audit log's sequence number
+used to be derived from board occupancy, which a cleared board would have restarted,
+colliding on `(game_id, seq)`. It is now `MAX(seq) + 1`.
+
 ## Concurrency
 
 One `asyncio.Lock` per game serialises the read-modify-write. Independent games

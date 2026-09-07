@@ -213,3 +213,135 @@ async def test_many_games_in_flight_stay_independent(store):
         state = await store.get_game(game.id)
         assert state.board[i % 9] == "X"
         assert sum(1 for c in state.board if c != EMPTY) == 1
+
+
+# --- rematch ---------------------------------------------------------------
+
+async def played_out(store, game_id: str) -> None:
+    """X wins the top row."""
+    for sid, cell in [("sid-x", 0), ("sid-o", 3), ("sid-x", 1), ("sid-o", 4), ("sid-x", 2)]:
+        assert isinstance(await store.play(game_id, sid, cell), MoveAccepted)
+
+
+async def test_a_spectator_cannot_reset_the_board(store):
+    game_id = await two_player_game(store)
+    await played_out(store, game_id)
+    await store.join(game_id, "sid-watcher")
+
+    assert await store.request_rematch(game_id, "sid-watcher") == Rejected(
+        Refused.NOT_A_PLAYER.value
+    )
+    assert (await store.get_game(game_id)).status is Status.FINISHED
+
+
+async def test_an_unknown_session_cannot_reset_the_board(store):
+    game_id = await two_player_game(store)
+    await played_out(store, game_id)
+    assert await store.request_rematch(game_id, "sid-forged") == Rejected(
+        Refused.NOT_A_PLAYER.value
+    )
+
+
+async def test_rematch_on_a_missing_game_is_refused(store):
+    assert await store.request_rematch("nope", "sid-x") == Rejected(
+        Refused.NO_SUCH_GAME.value
+    )
+
+
+async def test_both_players_agreeing_starts_a_new_round(store):
+    game_id = await two_player_game(store)
+    await played_out(store, game_id)
+
+    await store.request_rematch(game_id, "sid-x")
+    half = await store.get_game(game_id)
+    assert half.status is Status.FINISHED  # one vote changes nothing else
+    assert half.rematch == {"X"}
+
+    await store.request_rematch(game_id, "sid-o")
+    fresh = await store.get_game(game_id)
+    assert fresh.status is Status.IN_PROGRESS
+    assert fresh.board == (EMPTY,) * 9
+    assert fresh.round == 2
+    assert fresh.turn == "O"  # round 2 starts O
+    assert fresh.rematch == frozenset()
+
+    # seats are unchanged, so the same session is still X
+    assert (await store.role_of(game_id, "sid-x")).mark == "X"
+    assert isinstance(await store.play(game_id, "sid-o", 0), MoveAccepted)
+
+
+async def test_the_audit_log_continues_across_rounds(store):
+    """A reset board must not restart the move sequence and collide."""
+    game_id = await two_player_game(store)
+    await played_out(store, game_id)
+    await store.request_rematch(game_id, "sid-x")
+    await store.request_rematch(game_id, "sid-o")
+
+    assert isinstance(await store.play(game_id, "sid-o", 8), MoveAccepted)
+    log = await store.move_log(game_id)
+    assert [seq for seq, _, _ in log] == [1, 2, 3, 4, 5, 6]
+    assert log[-1] == (6, "O", 8)
+
+
+async def test_a_rematch_survives_a_restart(tmp_path):
+    db = tmp_path / "games.db"
+    store = GameStore(db)
+    game = await store.create_game("sid-x")
+    await store.join(game.id, "sid-o")
+    await played_out(store, game.id)
+    await store.request_rematch(game.id, "sid-x")
+    store.close()
+
+    reopened = GameStore(db)
+    try:
+        # the pending request is not lost by a restart mid-negotiation
+        assert (await reopened.get_game(game.id)).rematch == {"X"}
+        await reopened.request_rematch(game.id, "sid-o")
+        assert (await reopened.get_game(game.id)).round == 2
+    finally:
+        reopened.close()
+
+
+async def test_a_database_from_an_older_build_is_migrated(tmp_path):
+    """The schema gained columns after games were already being stored.
+
+    CREATE TABLE IF NOT EXISTS does nothing to an existing table, so without a
+    migration an older database would break on read - and surviving restarts is
+    the whole point of this service.
+    """
+    import sqlite3
+
+    db = tmp_path / "old.db"
+    legacy = sqlite3.connect(db)
+    legacy.executescript(
+        """
+        CREATE TABLE games (
+            id TEXT PRIMARY KEY, board TEXT NOT NULL, turn TEXT NOT NULL,
+            status TEXT NOT NULL, result TEXT, winning_line TEXT,
+            version INTEGER NOT NULL, created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+        CREATE TABLE seats (
+            game_id TEXT NOT NULL, mark TEXT NOT NULL, sid TEXT NOT NULL,
+            claimed_at TEXT NOT NULL,
+            PRIMARY KEY (game_id, mark), UNIQUE (game_id, sid)
+        );
+        INSERT INTO games VALUES
+            ('old1', 'X...O....', 'X', 'in_progress', NULL, NULL, 3, 'then', 'then');
+        INSERT INTO seats VALUES ('old1', 'X', 'sid-x', 'then');
+        INSERT INTO seats VALUES ('old1', 'O', 'sid-o', 'then');
+        """
+    )
+    legacy.commit()
+    legacy.close()
+
+    store = GameStore(db)
+    try:
+        state = await store.get_game("old1")
+        assert "".join(state.board) == "X...O...."
+        assert state.round == 1          # backfilled by the migration
+        assert state.rematch == frozenset()
+        assert (await store.role_of("old1", "sid-x")).mark == "X"
+        assert isinstance(await store.play("old1", "sid-x", 1), MoveAccepted)
+    finally:
+        store.close()

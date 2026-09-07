@@ -36,6 +36,7 @@ from app.game import (
     Status,
     apply_move,
     new_game,
+    request_rematch,
     start,
 )
 
@@ -49,7 +50,9 @@ CREATE TABLE IF NOT EXISTS games (
     winning_line TEXT,
     version      INTEGER NOT NULL,
     created_at   TEXT NOT NULL,
-    updated_at   TEXT NOT NULL
+    updated_at   TEXT NOT NULL,
+    round        INTEGER NOT NULL DEFAULT 1,
+    rematch      TEXT NOT NULL DEFAULT ''
 );
 
 -- PRIMARY KEY (game_id, mark) caps a game at two seats.
@@ -158,6 +161,8 @@ def _row_to_state(row: sqlite3.Row) -> GameState:
         result=Result(row["result"]) if row["result"] else None,
         winning_line=_decode_line(row["winning_line"]),
         version=row["version"],
+        round=row["round"],
+        rematch=frozenset(row["rematch"]),
     )
 
 
@@ -179,7 +184,24 @@ class GameStore:
         self._conn.execute("PRAGMA foreign_keys=ON")
         self._conn.execute("PRAGMA busy_timeout=5000")
         self._conn.executescript(SCHEMA)
+        self._migrate()
         self._locks: dict[str, asyncio.Lock] = {}
+
+    def _migrate(self) -> None:
+        """Add columns a database written by an older build will not have.
+
+        `CREATE TABLE IF NOT EXISTS` silently does nothing when the table
+        already exists, so a schema change alone would leave existing databases
+        broken — and the whole point of this service is that games written by a
+        previous process are still there.
+        """
+        existing = {row["name"] for row in self._conn.execute("PRAGMA table_info(games)")}
+        for column, definition in (
+            ("round", "INTEGER NOT NULL DEFAULT 1"),
+            ("rematch", "TEXT NOT NULL DEFAULT ''"),
+        ):
+            if column not in existing:
+                self._conn.execute(f"ALTER TABLE games ADD COLUMN {column} {definition}")
 
     def close(self) -> None:
         self._conn.close()
@@ -227,7 +249,8 @@ class GameStore:
         self._conn.execute(
             """UPDATE games
                   SET board = ?, turn = ?, status = ?, result = ?,
-                      winning_line = ?, version = ?, updated_at = ?
+                      winning_line = ?, version = ?, updated_at = ?,
+                      round = ?, rematch = ?
                 WHERE id = ?""",
             (
                 "".join(state.board),
@@ -237,6 +260,8 @@ class GameStore:
                 _encode_line(state.winning_line),
                 state.version,
                 _utcnow(),
+                state.round,
+                "".join(sorted(state.rematch)),
                 state.id,
             ),
         )
@@ -348,13 +373,49 @@ class GameStore:
             if isinstance(outcome, MoveRejected):
                 return Rejected(outcome.reason.value)
 
-            seq = sum(1 for c in outcome.state.board if c != EMPTY)
+            # Continue the audit log across rounds rather than deriving the
+            # sequence from board occupancy: a rematch resets the board, which
+            # would restart the count and collide on (game_id, seq).
+            seq = self._next_move_seq(game_id)
             with self._transaction():
                 self._write_game(outcome.state)
                 self._conn.execute(
                     "INSERT INTO moves (game_id, seq, mark, cell, at) VALUES (?, ?, ?, ?, ?)",
                     (game_id, seq, mark, cell, _utcnow()),
                 )
+            return outcome
+
+    def _next_move_seq(self, game_id: str) -> int:
+        row = self._conn.execute(
+            "SELECT COALESCE(MAX(seq), 0) + 1 AS next FROM moves WHERE game_id = ?",
+            (game_id,),
+        ).fetchone()
+        return row["next"]
+
+    async def request_rematch(self, game_id: str, sid: str) -> PlayOutcome:
+        """Ask for a rematch. Same authority path as a move.
+
+        The mark comes from the seat table, so a spectator cannot reset a game
+        they are only watching.
+        """
+        async with self._lock(game_id):
+            state = self._read_game(game_id)
+            if state is None:
+                return Rejected(Refused.NO_SUCH_GAME.value)
+
+            mark = next(
+                (m for m, seat_sid in self._read_seats(game_id).items() if seat_sid == sid),
+                None,
+            )
+            if mark is None:
+                return Rejected(Refused.NOT_A_PLAYER.value)
+
+            outcome = request_rematch(state, mark)
+            if isinstance(outcome, MoveRejected):
+                return Rejected(outcome.reason.value)
+
+            with self._transaction():
+                self._write_game(outcome.state)
             return outcome
 
     async def move_log(self, game_id: str) -> list[tuple[int, str, int]]:

@@ -45,15 +45,15 @@ is the same mechanism that makes reconnection work; see DESIGN.md.
 .venv/Scripts/python -m pytest
 ```
 
-112 tests, about 20 seconds (most of that is the end-to-end suite starting and
+138 tests, about 20 seconds (most of that is the end-to-end suite starting and
 killing real server processes).
 
 | File | Tests | What it covers |
 |---|---|---|
-| `tests/test_game.py` | 45 | Rules in isolation: every win line, draws, every rejection |
-| `tests/test_store.py` | 18 | Seat ownership, forged sessions, racing moves, restart |
-| `tests/test_http.py` | 13 | Cookie attributes, link-preview crawlers, malformed ids |
-| `tests/test_ws.py` | 29 | Server authority, adversarial frames, reconnection, isolation |
+| `tests/test_game.py` | 55 | Rules in isolation: every win line, draws, every rejection, rematch |
+| `tests/test_store.py` | 25 | Seat ownership, forged sessions, racing moves, restart, schema migration |
+| `tests/test_http.py` | 15 | Cookie attributes, link-preview crawlers, malformed ids, QR |
+| `tests/test_ws.py` | 36 | Server authority, adversarial frames, reconnection, isolation, rematch |
 | `tests/test_endtoend.py` | 7 | Real uvicorn process: hard kill + restart, 20 concurrent games, flooding client |
 
 The end-to-end suite kills the server with `Popen.kill()`, never `terminate()` —
@@ -70,6 +70,9 @@ about durability.
   and moves on finished games are all refused. "Move as the other player" is not
   expressible in the protocol — see DESIGN.md.
 - **Win/draw detection** with the winning line highlighted and a clear end state.
+- **Rematch.** Either player can offer one when a game ends; it starts only when
+  both agree. Seats never change hands, and the first move alternates by round so
+  the same player does not keep X's advantage.
 - **Reconnection.** Refresh, drop your connection, or restart the server — you
   rejoin the same game in its current state with your seat intact. The client
   reconnects on its own with exponential backoff.
@@ -93,10 +96,9 @@ Roughly in the order I would actually do them:
    pub/sub. That deletes the in-process lock table rather than bounding it.
 3. **Abandonment handling.** Timeouts, forfeits, and cleanup of games nobody
    returns to.
-4. **A rematch button.** Right now a finished game is a dead end.
-5. **An explicit "take the open seat / just watch" prompt**, instead of
+4. **An explicit "take the open seat / just watch" prompt**, instead of
    first-come seat claiming.
-6. **Rate limiting and backpressure** on the socket.
+5. **Rate limiting and backpressure** on the socket.
 
 ## Limitations
 

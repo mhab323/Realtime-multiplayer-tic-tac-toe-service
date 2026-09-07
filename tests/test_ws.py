@@ -306,3 +306,95 @@ def test_moves_do_not_leak_between_games(client):
             board = x2.receive_json()["game"]["board"]
             assert board == [".", ".", ".", ".", ".", ".", ".", ".", "X"]
             assert o2.receive_json()["game"]["board"] == board
+
+
+# --- rematch ---------------------------------------------------------------
+
+def play_to_a_win(x, o):
+    """X takes the top row. Both sockets are drained."""
+    for socket_, cell in [(x, 0), (o, 3), (x, 1), (o, 4), (x, 2)]:
+        socket_.send_json({"type": "move", "cell": cell})
+        x.receive_json(), o.receive_json()
+
+
+def test_a_rematch_needs_both_players(client):
+    with seated_game(client) as (_, x, o):
+        play_to_a_win(x, o)
+
+        x.send_json({"type": "rematch"})
+        after_one = x.receive_json()
+        o.receive_json()
+        assert after_one["game"]["status"] == "finished"  # board untouched
+        assert after_one["game"]["rematch"] == ["X"]
+
+        o.send_json({"type": "rematch"})
+        fresh = x.receive_json()
+        assert fresh["game"] == o.receive_json()["game"]
+        assert fresh["game"]["status"] == "in_progress"
+        assert fresh["game"]["board"] == EMPTY_BOARD
+        assert fresh["game"]["round"] == 2
+        assert fresh["game"]["turn"] == "O"
+        assert fresh["game"]["rematch"] == []
+
+
+def test_you_keep_your_mark_across_a_rematch(client):
+    """A rematch must not reassign seats underneath a player."""
+    game_id = new_game(client, ALICE)
+    with (
+        client.websocket_connect(f"/ws/{game_id}", headers=jar(ALICE)) as x,
+        client.websocket_connect(f"/ws/{game_id}", headers=jar(BOB)) as o,
+    ):
+        x.receive_json(), o.receive_json(), x.receive_json()
+        play_to_a_win(x, o)
+        for socket_ in (x, o):
+            socket_.send_json({"type": "rematch"})
+            x.receive_json(), o.receive_json()
+
+    with client.websocket_connect(f"/ws/{game_id}", headers=jar(ALICE)) as again:
+        snapshot = again.receive_json()
+        assert snapshot["you"] == {"role": "player", "mark": "X"}
+        assert snapshot["game"]["round"] == 2
+
+
+def test_a_spectator_cannot_reset_the_board(client):
+    with seated_game(client) as (game_id, x, o):
+        play_to_a_win(x, o)
+        with client.websocket_connect(f"/ws/{game_id}", headers=jar(CAROL)) as watcher:
+            watcher.receive_json()
+            x.receive_json(), o.receive_json()
+
+            watcher.send_json({"type": "rematch"})
+            assert watcher.receive_json()["code"] == "not_a_player"
+
+        body = client.get(f"/api/games/{game_id}", headers=jar(DAVE)).json()
+        assert body["game"]["status"] == "finished"
+        assert body["game"]["round"] == 1
+
+
+def test_no_rematch_before_the_game_is_over(client):
+    with seated_game(client) as (_, x, o):
+        x.send_json({"type": "rematch"})
+        assert x.receive_json()["code"] == "game_not_finished"
+
+
+def test_asking_for_a_rematch_twice_is_refused(client):
+    with seated_game(client) as (_, x, o):
+        play_to_a_win(x, o)
+        x.send_json({"type": "rematch"})
+        x.receive_json(), o.receive_json()
+        x.send_json({"type": "rematch"})
+        assert x.receive_json()["code"] == "already_requested"
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        json.dumps({"type": "rematch", "mark": "O"}),
+        json.dumps({"type": "rematch", "cell": 0}),
+    ],
+)
+def test_a_rematch_message_still_has_no_field_to_impersonate_with(client, raw):
+    with seated_game(client) as (_, x, o):
+        play_to_a_win(x, o)
+        x.send_text(raw)
+        assert x.receive_json()["code"] == "unknown_message"
