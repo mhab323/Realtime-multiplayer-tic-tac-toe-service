@@ -7,17 +7,21 @@ from it server-side. No endpoint accepts an identity from the client.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import secrets
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Literal
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, ConfigDict, ValidationError
 
-from app.store import GameStore
+from app.hub import Connection, Hub
+from app.store import GameStore, Rejected
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 STATIC_DIR = PROJECT_ROOT / "static"
@@ -42,6 +46,59 @@ NOT_FOUND_HTML = """<!doctype html>
 <a class="primary" href="/">Start a new one</a></main></body></html>
 """
 
+# A move is about 30 bytes. Anything approaching this is not a client of ours.
+MAX_FRAME_BYTES = 1024
+
+ERROR_MESSAGES = {
+    "no_such_game": "That game does not exist.",
+    "no_session": "No session — open the game page first.",
+    "not_a_player": "You are watching this game.",
+    "not_your_turn": "It is not your turn.",
+    "cell_taken": "That square is already taken.",
+    "cell_out_of_range": "That is not a square.",
+    "game_over": "This game is already finished.",
+    "game_not_started": "Still waiting for an opponent.",
+    "unknown_mark": "Unrecognised mark.",
+    "malformed_json": "That was not JSON.",
+    "unknown_message": "Unrecognised message.",
+    "message_too_large": "Message too large.",
+}
+
+
+class MoveMessage(BaseModel):
+    """The entire client vocabulary. There are no other messages.
+
+    `strict=True` so `true` does not become cell 1 and `"0"` does not become
+    cell 0 — lenient parsing is how an adversarial input becomes a legal move.
+
+    `extra="forbid"` so there is no field in which to smuggle an identity.
+    `{"type":"move","cell":0,"mark":"O"}` is a hard error rather than a field we
+    quietly ignore. Combined with deriving the mark from the session, "move as
+    the other player" is not a request the protocol can express.
+    """
+
+    model_config = ConfigDict(strict=True, extra="forbid")
+
+    type: Literal["move"]
+    cell: int
+
+
+async def _error(websocket: WebSocket, code: str) -> None:
+    """Refuse one message. Deliberately does not close the socket.
+
+    A buggy client should not lose its game over a bad frame, and a malicious
+    one gains nothing by staying connected — every message is re-authorised.
+    """
+    await websocket.send_json(
+        {"type": "error", "code": code, "message": ERROR_MESSAGES.get(code, "Refused.")}
+    )
+
+
+async def _reject(websocket: WebSocket, code: str) -> None:
+    """Refuse the connection itself: say why, then close."""
+    await _error(websocket, code)
+    await websocket.close(code=1008)  # policy violation
+
 
 def create_app(db_path: str | Path | None = None) -> FastAPI:
     """Build an app bound to one database.
@@ -57,6 +114,7 @@ def create_app(db_path: str | Path | None = None) -> FastAPI:
 
     app = FastAPI(title="Realtime Tic-Tac-Toe", lifespan=lifespan)
     app.state.store = GameStore(db_path or DEFAULT_DB)
+    app.state.hub = Hub()
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
     @app.middleware("http")
@@ -142,6 +200,107 @@ def create_app(db_path: str | Path | None = None) -> FastAPI:
         if await app.state.store.get_game(game_id) is None:
             return HTMLResponse(NOT_FOUND_HTML, status_code=404)
         return FileResponse(STATIC_DIR / "game.html")
+
+    # --- realtime ----------------------------------------------------------
+
+    async def state_message(game_id: str) -> dict:
+        state = await app.state.store.get_game(game_id)
+        return {
+            "type": "state",
+            "game": state.as_dict(),
+            "presence": app.state.hub.presence(game_id),
+        }
+
+    async def handle_message(websocket: WebSocket, game_id: str, sid: str, raw: str) -> None:
+        if len(raw) > MAX_FRAME_BYTES:
+            return await _error(websocket, "message_too_large")
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError:
+            return await _error(websocket, "malformed_json")
+        try:
+            message = MoveMessage.model_validate(payload)
+        except ValidationError:
+            return await _error(websocket, "unknown_message")
+
+        # The seat is resolved from the session on *every* message, not read
+        # from the connection. A role captured at connect time is a cached copy
+        # of authority, and this is the one place that must not be stale.
+        outcome = await app.state.store.play(game_id, sid, message.cell)
+        if isinstance(outcome, Rejected):
+            # Refusals go to the offender only. Nobody else needs to know that
+            # someone tried something.
+            return await _error(websocket, outcome.code)
+
+        await app.state.hub.broadcast(
+            game_id,
+            {
+                "type": "state",
+                "game": outcome.state.as_dict(),
+                "presence": app.state.hub.presence(game_id),
+            },
+        )
+
+    @app.websocket("/ws/{game_id}")
+    async def game_socket(websocket: WebSocket, game_id: str) -> None:
+        await websocket.accept()
+
+        if not _GAME_ID_RE.match(game_id):
+            return await _reject(websocket, "no_such_game")
+
+        sid = websocket.cookies.get(SESSION_COOKIE)
+        if sid is None or not _SID_RE.match(sid):
+            # A cookie cannot be minted on a WebSocket handshake, and we will
+            # not take an identity from the message body. A client that never
+            # loaded a page therefore has no session and cannot hold a seat.
+            return await _reject(websocket, "no_session")
+
+        # This is where seats are claimed — not on the page GET. See game_page.
+        role = await app.state.store.join(game_id, sid)
+        if role is None:
+            return await _reject(websocket, "no_such_game")
+
+        state = await app.state.store.get_game(game_id)
+        if state is None:  # pragma: no cover - nothing deletes games
+            return await _reject(websocket, "no_such_game")
+
+        conn = Connection(ws=websocket, sid=sid, role=role)
+        app.state.hub.join(game_id, conn)
+        try:
+            await websocket.send_json(
+                {
+                    "type": "snapshot",
+                    "you": role.as_dict(),
+                    "game": state.as_dict(),
+                    "presence": app.state.hub.presence(game_id),
+                }
+            )
+            # Everyone else learns the roster changed — and this may be the join
+            # that started the game.
+            await app.state.hub.broadcast(game_id, await state_message(game_id), skip=conn)
+
+            while True:
+                # receive() rather than receive_text(): a binary frame has no
+                # "text" key, so receive_text() would raise KeyError and take
+                # the handler down. The protocol is text-only, so say so.
+                message = await websocket.receive()
+                if message["type"] == "websocket.disconnect":
+                    break
+                raw = message.get("text")
+                if raw is None:
+                    await _error(websocket, "unknown_message")
+                    continue
+                await handle_message(websocket, game_id, sid, raw)
+        except WebSocketDisconnect:
+            pass
+        finally:
+            # Dropping a socket never touches the seat. That is the whole of
+            # reconnection: there is nothing to restore.
+            app.state.hub.leave(game_id, conn)
+            await app.state.hub.broadcast(
+                game_id,
+                {"type": "presence", "presence": app.state.hub.presence(game_id)},
+            )
 
     return app
 
