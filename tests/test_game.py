@@ -24,6 +24,7 @@ from app.game import (
     new_game,
     other,
     start,
+    winning_line_for,
 )
 
 
@@ -49,6 +50,26 @@ def expect_rejected(state: GameState, mark: str, cell, reason: Rejection) -> Non
     outcome = apply_move(state, mark, cell)
     assert isinstance(outcome, MoveRejected), f"expected rejected, got {outcome}"
     assert outcome.reason is reason
+
+
+def scatter(count: int, avoid: tuple[int, ...]) -> list[int]:
+    """Pick `count` cells outside `avoid` that do not themselves form a line.
+
+    Naively taking the first free cells produces boards where the *opponent* has
+    already won (e.g. reserve the top row for O and the first three free cells
+    are 3,4,5 — a line for X). Such a position is unreachable in a real game, so
+    a test asserting anything about it proves nothing.
+    """
+    chosen: list[int] = []
+    for i in range(BOARD_CELLS):
+        if i in avoid or len(chosen) == count:
+            continue
+        candidate = chosen + [i]
+        if any(all(c in candidate for c in line) for line in WINNING_LINES):
+            continue
+        chosen.append(i)
+    assert len(chosen) == count
+    return chosen
 
 
 # --- lifecycle -------------------------------------------------------------
@@ -90,16 +111,19 @@ def test_start_is_idempotent():
 def test_every_winning_line_is_detected(line, mark):
     a, b, final = line
     opponent = other(mark)
-    outside = [i for i in range(BOARD_CELLS) if i not in line]
 
     cells = [EMPTY] * BOARD_CELLS
     cells[a] = cells[b] = mark
-    # X always has one more mark on the board than O when X is to move, so give
-    # the opponent a reachable count for whichever side is about to win.
-    for i in outside[: 2 if mark == "X" else 3]:
+    # X always has exactly one more mark than O when X is to move, so the
+    # opponent's count depends on who is about to win. Keeping the position
+    # reachable is what makes this test mean something.
+    for i in scatter(2 if mark == "X" else 3, avoid=line):
         cells[i] = opponent
 
-    state = accept(playable(cells, turn=mark, version=4), mark, final)
+    board = tuple(cells)
+    assert winning_line_for(board, opponent) is None, "fixture is already won"
+
+    state = accept(playable(board, turn=mark, version=4), mark, final)
 
     assert state.status is Status.FINISHED
     assert state.result is (Result.X_WON if mark == "X" else Result.O_WON)
