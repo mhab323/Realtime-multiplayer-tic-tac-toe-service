@@ -386,3 +386,25 @@ getting discovered by the reviewer.
 5. **Seat claiming is first-come** (§1.5) — a curious spectator can take a seat.
 6. **SQLite writes run on the event loop.** Sub-millisecond at this size, so
    deliberate; would move to a thread executor under real load.
+7. **The per-game lock table is unbounded.** One `asyncio.Lock` per game id ever
+   seen, never evicted. Fine for a demo, a slow leak in production.
+
+---
+
+## 7. Revisions to this plan
+
+Kept as a log rather than edited in place, so the reasoning stays visible.
+
+**Phase 1 — dropped timestamps from `GameState`.** §2.1 listed `created_at` /
+`updated_at` on the game. A domain module that calls `datetime.now()` is
+non-deterministic to test, and clocks are a persistence concern. They live on the
+`games` row instead; the pure rules never see a clock.
+
+**Phase 2 — dropped the in-memory game cache.** §2 planned "an in-memory cache of
+loaded games with lazy load from disk". Removed: a single-row SQLite read is
+microseconds, so the cache bought nothing measurable, and it introduced a second
+source of truth for the one piece of state the whole service is about. Without
+it, "in-progress games survive a server restart" stops being a feature that has
+to work and becomes a property of the design — the process holds sockets and
+nothing else. The per-game lock stayed.
+
