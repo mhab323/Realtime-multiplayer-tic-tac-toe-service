@@ -1,6 +1,6 @@
 """Pure tic-tac-toe rules.
 
-This module is the single place where a board changes (ROADMAP invariant I1).
+This module is the single place where a board changes.
 It imports nothing from FastAPI, sqlite or asyncio on purpose: the rules are the
 only part of this service that must be *provably* correct, so they are testable
 without a server, a socket, or a database.

@@ -4,8 +4,6 @@ Start a game, get a link, send it to someone, play in realtime. The server owns
 the game state and validates every move; the browser is a renderer.
 
 - **Design note:** [DESIGN.md](DESIGN.md) — decisions and rejected alternatives
-- **Build log:** [ROADMAP.md](ROADMAP.md) — the plan, plus a log of where the
-  plan changed and why
 
 ## Run it
 
@@ -121,8 +119,8 @@ Stated up front rather than left to be discovered.
    and refused, but nothing caps it, and one slow socket delays a broadcast.
 6. **The per-game lock table is unbounded** — one lock per game id ever seen,
    never evicted. Measured at 136 bytes each, so ~13 MB at 100k games.
-   Deliberately not fixed; ROADMAP §6.1 has the striped-lock design I rejected
-   and the reason.
+   Deliberately not fixed — see DESIGN.md for the striped-lock alternative I
+   rejected and why.
 7. **Half-open connection detection relies on uvicorn's default ping interval**
    rather than anything I configured, so presence can briefly show a ghost.
 8. **SQLite writes run on the event loop.** Sub-millisecond at this size; would

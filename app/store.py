@@ -269,7 +269,7 @@ class GameStore:
     # --- public API --------------------------------------------------------
 
     async def create_game(self, sid: str) -> GameState:
-        """Create a game and seat the creator as X (ROADMAP 1.5)."""
+        """Create a game and seat the creator as X."""
         now = _utcnow()
         for _ in range(5):  # id collision is ~impossible; failing loudly is not
             state = new_game(_new_id())

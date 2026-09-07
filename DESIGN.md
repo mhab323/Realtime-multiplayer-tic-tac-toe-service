@@ -136,10 +136,27 @@ someone swapping stdlib `sqlite3` for an async driver, and that failure would be
 silent double-moves. The race test says this out loud rather than implying the
 lock is doing work.
 
-*Rejected:* **striped locks** to bound the lock table. Correct, but the leak needs
-~100k games to reach 13 MB, and `asyncio.Lock` is not reentrant — two distinct
-game ids sharing a stripe would deadlock if any future feature held two game
-locks at once. ROADMAP §6.1 has the full reasoning.
+The lock table is never evicted, so it grows with every game id ever seen. I
+measured it rather than guessing: an `asyncio.Lock` is 136 bytes, so 100k games
+costs ~13 MB. Left unfixed deliberately.
+
+*Rejected:* **striped locks** — a fixed array indexed by `hash(game_id) % 1024`.
+Correct (a coarser lock is a superset; collisions cost false contention, never a
+wrong answer) and hard-bounded at ~136 KB. Not built because the leak needs ~100k
+games to matter, and because `asyncio.Lock` is not reentrant: two *distinct* game
+ids sharing a stripe would deadlock the moment any future feature held two game
+locks at once — non-deterministically, since Python's string hash is randomised
+per process.
+
+*Rejected:* **`weakref.WeakValueDictionary`** — verified to work, and bounded by
+*live* games rather than games ever seen. Rejected because its correctness rests
+on callers holding a strong reference, an invariant nothing in the code makes
+visible. Striping is the better fix precisely because it is dumber.
+
+The real answer is neither: per-process locks are worthless once this runs on
+more than one worker, because two workers do not share a lock table. Moving the
+read-modify-write into a SQLite `BEGIN IMMEDIATE` deletes the table rather than
+bounding it, and that is a correctness change, not a memory optimisation.
 
 ## Stack
 
