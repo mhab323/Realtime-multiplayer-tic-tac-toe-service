@@ -387,7 +387,36 @@ getting discovered by the reviewer.
 6. **SQLite writes run on the event loop.** Sub-millisecond at this size, so
    deliberate; would move to a thread executor under real load.
 7. **The per-game lock table is unbounded.** One `asyncio.Lock` per game id ever
-   seen, never evicted. Fine for a demo, a slow leak in production.
+   seen, never evicted. Measured rather than guessed: a lock is 136 bytes, so
+   100k games costs ~13 MB and 1M games ~130 MB. Deliberately not fixed — see
+   below.
+
+### 6.1 Why the lock table is not fixed
+
+Considered and rejected, recorded because "we didn't get to it" and "we decided
+not to" are different answers.
+
+*Rejected:* **striped locks** — a fixed array of 1024 locks indexed by
+`hash(game_id) % 1024`. Correct (a coarser lock is a superset; collisions cost
+false contention, never a wrong answer), hard-bounded, and with no eviction
+logic to get wrong. Not built because the leak needs ~100k games to be worth a
+paragraph, and because `asyncio.Lock` is not reentrant: two *distinct* game ids
+sharing a stripe would deadlock instantly if any future feature ever held two
+game locks at once, and non-deterministically, since Python's string hash is
+randomised per process.
+
+*Rejected:* **`weakref.WeakValueDictionary`** — verified to work (entries evict
+once idle, a waiter keeps its lock alive, mutual exclusion holds), and bounded by
+*live* games rather than games ever seen. Rejected because its correctness rests
+on the caller holding a strong reference, an invariant nothing in the code makes
+visible. Striping is the better fix precisely because it is dumber.
+
+*The real answer, when it matters:* per-process locks are worthless the moment
+limitation 1 is addressed, because two workers do not share a lock table. Moving
+the read-modify-write inside a SQLite `BEGIN IMMEDIATE` on a per-request
+connection lets the database's own lock manager serialise writers across
+processes, and deletes the lock table rather than bounding it. That is the change
+to make, and it is not a memory optimisation.
 
 ---
 
