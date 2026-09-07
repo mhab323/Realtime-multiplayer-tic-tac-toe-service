@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# SQLite game database (created at runtime)
+*.db
+*.db-wal
+*.db-shm
+data/
