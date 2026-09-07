@@ -1,51 +1,233 @@
 :root {
-  --bg: #12131a;
-  --card: #1b1d27;
-  --line: #2c2f3d;
-  --fg: #e8e9ef;
-  --muted: #9aa0b4;
-  --accent: #6ea8fe;
-  --x: #6ea8fe;
-  --o: #f5a97f;
-  --win: #63d29a;
-  --err: #ed8796;
+  color-scheme: light dark;
+  --bg: #f4f6f9;
+  --card: #ffffff;
+  --line: #e3e7ee;
+  --cell: #f8fafc;
+  --fg: #14171c;
+  --muted: #646b78;
+  --accent: #2f6fed;
+  --accent-fg: #ffffff;
+  --x: #2f6fed;
+  --o: #dd6a10;
+  --win: #16a34a;
+  --win-bg: #dcfce7;
+  --err: #dc2626;
+  --err-bg: #fee2e2;
+  --warn-bg: #fef3c7;
+  --warn-fg: #92400e;
+  --shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 12px 32px rgba(16, 24, 40, .08);
+  --radius: 14px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0e1116;
+    --card: #161a21;
+    --line: #262c37;
+    --cell: #1c212a;
+    --fg: #e7eaf0;
+    --muted: #939bab;
+    --accent: #5b8def;
+    --accent-fg: #0b0e13;
+    --x: #6ea8fe;
+    --o: #f0a26a;
+    --win: #4ade80;
+    --win-bg: #14331f;
+    --err: #f28b8b;
+    --err-bg: #3a1d1d;
+    --warn-bg: #3a2f14;
+    --warn-fg: #f5d68a;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 16px 40px rgba(0, 0, 0, .4);
+  }
 }
 
 * { box-sizing: border-box; }
 
 body {
   margin: 0;
-  min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   place-items: center;
+  padding: 16px;
   background: var(--bg);
   color: var(--fg);
-  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-text-size-adjust: 100%;
 }
 
 .card {
+  width: 100%;
+  max-width: 380px;
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 32px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 24px 20px;
   text-align: center;
-  min-width: 320px;
 }
 
-h1 { margin: 0 0 4px; font-size: 24px; }
-.muted { color: var(--muted); font-size: 14px; }
-.error { color: var(--err); font-size: 14px; }
+h1 { margin: 0; font-size: 20px; letter-spacing: -.01em; }
+.muted { color: var(--muted); font-size: 14px; margin: 6px 0 0; }
+
+/* --- players ------------------------------------------------------------ */
+
+.players {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 13px;
+  color: var(--muted);
+  background: var(--cell);
+  transition: border-color .15s, color .15s;
+}
+
+.chip b { font-weight: 700; font-size: 14px; }
+.chip[data-mark="X"] b { color: var(--x); }
+.chip[data-mark="O"] b { color: var(--o); }
+
+/* whose turn it is, at a glance */
+.chip.turn { border-color: currentColor; color: var(--fg); }
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--line);
+  box-shadow: 0 0 0 2px var(--card);
+}
+.chip.online .dot { background: var(--win); }
+
+.chip .who { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+
+.watchers { font-size: 13px; color: var(--muted); margin: 10px 0 0; min-height: 1.5em; }
+
+/* --- board -------------------------------------------------------------- */
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  width: min(84vw, 300px);
+  margin: 18px auto 14px;
+}
+
+.cell {
+  aspect-ratio: 1 / 1;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  font: 700 clamp(30px, 13vw, 46px)/1 system-ui, sans-serif;
+  color: var(--fg);
+  background: var(--cell);
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  cursor: default;
+  -webkit-tap-highlight-color: transparent;
+  transition: background .12s, border-color .12s, transform .08s;
+}
+
+.cell[data-mark="X"] { color: var(--x); }
+.cell[data-mark="O"] { color: var(--o); }
+
+/* Playable styling is a HINT ONLY. The server refuses illegal moves
+   regardless of what this stylesheet thinks. */
+.board.playable .cell:not([data-mark]) { cursor: pointer; }
+.board.playable .cell:not([data-mark]):hover { border-color: var(--accent); background: var(--card); }
+.board.playable .cell:not([data-mark]):active { transform: scale(.96); }
+
+.cell:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* the move we have sent but the server has not confirmed */
+.cell.pending { opacity: .4; }
+
+.cell.win { background: var(--win-bg); border-color: var(--win); }
+
+/* --- status ------------------------------------------------------------- */
+
+.status {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  min-height: 1.6em;
+}
+
+.status.done { font-size: 19px; }
+.status.win { color: var(--win); }
+.status.lose { color: var(--muted); }
+
+.flash {
+  margin: 10px 0 0;
+  padding: 8px 12px;
+  border-radius: 9px;
+  background: var(--err-bg);
+  color: var(--err);
+  font-size: 14px;
+}
+
+.banner {
+  margin: 14px 0 0;
+  padding: 9px 12px;
+  border-radius: 9px;
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+  font-size: 14px;
+}
+
+/* --- invite ------------------------------------------------------------- */
+
+.invite { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 16px; }
+
+.invite-row { display: flex; gap: 8px; margin-top: 8px; }
+
+.invite-url {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 11px;
+  font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--muted);
+  background: var(--cell);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+}
 
 button.primary {
-  margin-top: 16px;
-  padding: 10px 20px;
+  padding: 10px 18px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 9px;
   background: var(--accent);
-  color: #10131a;
+  color: var(--accent-fg);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
+  white-space: nowrap;
+  transition: filter .12s, transform .08s;
 }
 
-button.primary:hover { filter: brightness(1.08); }
+button.primary:hover { filter: brightness(1.07); }
+button.primary:active { transform: translateY(1px); }
+button.primary:disabled { opacity: .55; cursor: default; transform: none; }
+
+a.primary { display: inline-block; margin-top: 14px; text-decoration: none; }
+
+.home-actions { margin-top: 20px; }
+
+@media (max-width: 380px) {
+  .card { padding: 20px 14px; }
+  .invite-row { flex-direction: column; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}

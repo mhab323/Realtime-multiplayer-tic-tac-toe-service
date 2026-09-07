@@ -4,14 +4,17 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Realtime Tic-Tac-Toe</title>
+  <link rel="icon" href="/static/favicon.svg">
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
   <main class="card">
     <h1>Tic-Tac-Toe</h1>
-    <p class="muted">Start a game, then send the link to someone.</p>
-    <button id="new-game" class="primary">New game</button>
-    <p id="error" class="error" hidden></p>
+    <p class="muted">Start a game, then send the link to someone. You play as X.</p>
+    <div class="home-actions">
+      <button id="new-game" class="primary" type="button">New game</button>
+    </div>
+    <p id="error" class="flash" hidden></p>
   </main>
   <script src="/static/home.js"></script>
 </body>
