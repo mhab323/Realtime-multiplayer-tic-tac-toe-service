@@ -169,6 +169,38 @@ Notes:
 - Set `TTT_PORT` to use a different port.
 - The exe is unsigned, so Windows SmartScreen will warn on first run.
 
+### A public link, without deploying
+
+For a link that works from any phone rather than just your own Wi-Fi, put a
+tunnel in front of the local server:
+
+```powershell
+winget install Cloudflare.cloudflared
+cloudflared tunnel --url http://localhost:8000
+```
+
+It prints an `https://….trycloudflare.com` URL. Because that is a *secure
+context*, the clipboard button works and the session cookie is issued with
+`Secure` — neither of which is true over plain http on a LAN.
+
+Verified through a live tunnel: `https://` invite links, the QR endpoint, and a
+full game played over `wss://`.
+
+The link lives only while `cloudflared` is running, changes every time, and
+exposes your local server to anyone who has it.
+
+**On proxies:** uvicorn trusts `X-Forwarded-Proto` from `127.0.0.1` by default,
+which is exactly where `cloudflared` connects from, so invite links come out as
+`https://` with no extra flags. On a hosted platform the proxy is *not* on
+localhost, so you would need `--forwarded-allow-ips="*"` — without it the invite
+link and QR code would encode `http://` on an https page.
+
+**Serverless platforms cannot host this** — Vercel, Netlify, Cloudflare Workers.
+Not a configuration problem: there is no long-lived process to hold a WebSocket,
+the filesystem is ephemeral so SQLite is wiped, and instances share no memory so
+two players in one game can land on different ones. This needs a persistent
+process — a container host such as Fly.io, Render or Railway.
+
 ## Agent transcript
 
 Built with Claude Code. The raw session log is one JSON object per line, so it is
