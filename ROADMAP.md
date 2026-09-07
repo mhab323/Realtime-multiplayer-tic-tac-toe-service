@@ -429,6 +429,16 @@ Kept as a log rather than edited in place, so the reasoning stays visible.
 non-deterministic to test, and clocks are a persistence concern. They live on the
 `games` row instead; the pure rules never see a clock.
 
+**Phase 3 — seats are claimed on WebSocket connect, not on page load.** §1.5 said
+"the next distinct session to open the link gets O", and Phase 3's exit criterion
+was written as two cookie jars loading the page and taking X and O. That design
+hands seat O to a link-preview crawler: paste the invite into Slack, WhatsApp or
+iMessage and their unfurler fetches `/g/{id}`, so the human who clicks arrives as
+a spectator to their own game. It also violates HTTP's rule that GET has no side
+effects. The page load now only mints a cookie; the seat is claimed when a real
+browser opens a socket, which no crawler does. First-come seat claiming (§1.5) is
+otherwise unchanged.
+
 **Phase 2 — dropped the in-memory game cache.** §2 planned "an in-memory cache of
 loaded games with lazy load from disk". Removed: a single-row SQLite read is
 microseconds, so the cache bought nothing measurable, and it introduced a second
