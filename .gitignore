@@ -12,3 +12,7 @@ dist/
 *.db-wal
 *.db-shm
 data/
+
+# IDE
+.idea/
+.vscode/
