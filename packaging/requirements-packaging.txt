@@ -1,0 +1,5 @@
+# Build-time and optional extras. NOT needed to run the service from source or
+# to run the tests - see ../requirements.txt for that.
+
+pyinstaller>=6.0
+segno>=1.6          # QR invites; the app degrades to no QR without it

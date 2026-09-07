@@ -7,27 +7,61 @@ from it server-side. No endpoint accepts an identity from the client.
 
 from __future__ import annotations
 
+import io
 import json
 import os
 import re
 import secrets
+import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, ValidationError
+
+try:  # optional: only needed for the QR invite, see requirements-packaging.txt
+    import segno
+except ImportError:  # pragma: no cover - exercised by not installing it
+    segno = None
 
 from app.hub import Connection, Hub
 from app.store import GameStore, Rejected
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+FROZEN = getattr(sys, "frozen", False)
+
+
+def _resource_root() -> Path:
+    """Where read-only bundled files live.
+
+    PyInstaller unpacks a one-file build into a temporary directory and points
+    `sys._MEIPASS` at it. `__file__` points in there too, which is correct for
+    static assets and catastrophically wrong for the database — see below.
+    """
+    if FROZEN:
+        return Path(sys._MEIPASS)  # type: ignore[attr-defined]
+    return Path(__file__).resolve().parent.parent
+
+
+def _data_root() -> Path:
+    """Where writable data lives.
+
+    Next to the executable when frozen. The bundle directory is deleted on exit,
+    so a database written there would be silently wiped on every run — the app
+    would look like it worked and lose every game.
+    """
+    if FROZEN:
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parent.parent
+
+
+PROJECT_ROOT = _resource_root()
 STATIC_DIR = PROJECT_ROOT / "static"
-# Anchored to the repo, not the process working directory, so the database does
-# not appear in a different place depending on where uvicorn was launched from.
-DEFAULT_DB = Path(os.environ.get("TTT_DB") or PROJECT_ROOT / "data" / "games.db")
+# Anchored to the repo (or the executable), not the process working directory,
+# so the database does not move depending on where the server was launched from.
+DEFAULT_DB = Path(os.environ.get("TTT_DB") or _data_root() / "data" / "games.db")
 
 SESSION_COOKIE = "sid"
 SESSION_MAX_AGE = 7 * 24 * 60 * 60  # 7 days
@@ -200,6 +234,36 @@ def create_app(db_path: str | Path | None = None) -> FastAPI:
         if await app.state.store.get_game(game_id) is None:
             return HTMLResponse(NOT_FOUND_HTML, status_code=404)
         return FileResponse(STATIC_DIR / "game.html")
+
+    @app.get("/g/{game_id}/qr.svg")
+    async def game_qr(game_id: str, request: Request) -> Response:
+        """The invite link as a QR code, so a phone can join without typing it.
+
+        Rendered server-side because a page served over plain http on a LAN
+        cannot use the Clipboard API — `http://192.168.x.x` is not a secure
+        context — so "copy the link" is not actually available on the device
+        you most want to play on.
+
+        Fixed black on white regardless of theme: a theme-coloured QR on a dark
+        background is a QR that will not scan.
+        """
+        if segno is None:
+            raise HTTPException(status_code=404, detail="qr support not installed")
+        if not _GAME_ID_RE.match(game_id):
+            raise HTTPException(status_code=404, detail="no such game")
+        if await app.state.store.get_game(game_id) is None:
+            raise HTTPException(status_code=404, detail="no such game")
+
+        buffer = io.BytesIO()
+        segno.make(f"{request.base_url}g/{game_id}", error="m").save(
+            buffer, kind="svg", scale=4, border=2,
+            dark="#000000", light="#ffffff", xmldecl=False, svgns=True,
+        )
+        return Response(
+            buffer.getvalue(),
+            media_type="image/svg+xml",
+            headers={"Cache-Control": "no-store"},
+        )
 
     # --- realtime ----------------------------------------------------------
 

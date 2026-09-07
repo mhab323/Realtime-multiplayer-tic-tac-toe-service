@@ -124,6 +124,24 @@ async def test_creator_keeps_x_while_strangers_look(app):
         assert body["you"] == {"role": "player", "mark": "X"}
 
 
+# --- QR invites (optional dependency) --------------------------------------
+
+async def test_the_qr_endpoint_renders_the_invite_link(app):
+    async with browser(app) as alice:
+        game_id = await new_game(alice)
+        res = await alice.get(f"/g/{game_id}/qr.svg")
+        if res.status_code == 404:
+            pytest.skip("segno not installed; the app degrades to no QR")
+        assert res.headers["content-type"].startswith("image/svg+xml")
+        assert res.text.lstrip().startswith("<svg")
+
+
+async def test_the_qr_endpoint_refuses_unknown_games(app):
+    async with browser(app) as c:
+        assert (await c.get("/g/missing-game/qr.svg")).status_code == 404
+        assert (await c.get("/g/bad.id/qr.svg")).status_code == 404
+
+
 # --- missing and malformed ids --------------------------------------------
 
 # "missing-game" is well-formed but was never issued; the rest fail the id

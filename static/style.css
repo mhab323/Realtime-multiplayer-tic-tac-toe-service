@@ -202,6 +202,17 @@ h1 { margin: 0; font-size: 20px; letter-spacing: -.01em; }
   border-radius: 9px;
 }
 
+.invite-qr { margin-top: 14px; }
+
+/* White plate behind the QR in both themes: contrast is what makes it scan. */
+.invite-qr img {
+  display: block;
+  margin: 0 auto;
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 6px;
+}
+
 button.primary {
   padding: 10px 18px;
   border: 0;

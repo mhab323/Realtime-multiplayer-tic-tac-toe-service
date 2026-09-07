@@ -128,6 +128,47 @@ Stated up front rather than left to be discovered.
 9. **The test suite uses `starlette.testclient`**, which now emits a deprecation
    warning in favour of `httpx2`. Works today.
 
+## Playing on a phone — packaged build
+
+> **Not part of the assignment.** This is a demo convenience: a standalone
+> executable that serves the game to other devices on your Wi-Fi. It adds no
+> game features and the service itself is unchanged.
+
+```powershell
+.\.venv\Scripts\python -m pip install -r packaging\requirements-packaging.txt
+.\packaging\build.ps1
+.\dist\realtime-ttt.exe
+```
+
+Produces a single ~17 MB `dist/realtime-ttt.exe` with Python bundled in. It binds
+`0.0.0.0` and prints both addresses:
+
+```
+   On this computer : http://localhost:8000
+   On your phone    : http://192.168.1.20:8000   (same Wi-Fi)
+```
+
+Open the invite on your laptop and **scan the QR code** with the phone's camera.
+That is not decoration: `http://192.168.x.x` is not a *secure context*, so the
+Clipboard API is unavailable on exactly the device you most want to play on. The
+QR is rendered server-side at `/g/{id}/qr.svg`, so it needs no JavaScript library
+and works offline. `segno` is optional — without it the endpoint 404s and the UI
+hides the QR rather than showing a broken image.
+
+Notes:
+
+- Windows will ask to allow the app through the firewall. Say yes for **private**
+  networks, or the phone cannot connect.
+- The database is written to `dist/data/games.db`, **next to the executable**.
+  A one-file PyInstaller build unpacks itself into a temp directory that is
+  deleted on exit, so a database written there would be silently wiped on every
+  run. `app/main.py` resolves read-only assets through `sys._MEIPASS` and
+  writable data through `sys.executable`.
+- Binding `0.0.0.0` exposes the service to everyone on your network. It is a
+  tic-tac-toe game with no accounts, but it is not nothing.
+- Set `TTT_PORT` to use a different port.
+- The exe is unsigned, so Windows SmartScreen will warn on first run.
+
 ## Agent transcript
 
 Built with Claude Code. The raw session log is one JSON object per line, so it is
@@ -154,6 +195,9 @@ static/       no build step; plain HTML, CSS and JS
 tests/
 tools/
   export_transcript.py   turns a Claude Code session log into readable markdown
+packaging/              beyond the assignment - standalone .exe for phone play
+  launcher.py
+  build.ps1
 ```
 
 Each layer is blind to the one above it: the rules know nothing about sessions,

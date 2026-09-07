@@ -3,6 +3,10 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 
+# PyInstaller build artefacts
+build/
+dist/
+
 # SQLite game database (created at runtime)
 *.db
 *.db-wal

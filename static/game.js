@@ -28,7 +28,15 @@ const el = {
   invite: document.getElementById("invite"),
   inviteUrl: document.getElementById("invite-url"),
   copy: document.getElementById("copy"),
+  inviteQr: document.getElementById("invite-qr"),
+  qr: document.getElementById("qr"),
 };
+
+// The QR endpoint is optional — segno may not be installed. Reveal the block
+// only once the image actually loads, so a missing endpoint degrades to no QR
+// rather than to a broken image icon.
+el.qr.addEventListener("load", () => (el.inviteQr.hidden = false));
+el.qr.addEventListener("error", () => (el.inviteQr.hidden = true));
 
 let you = null;        // { role, mark }
 let game = null;       // last authoritative state
@@ -181,7 +189,10 @@ function render() {
 
   const inviting = you.role === "player" && game.status === "waiting";
   el.invite.hidden = !inviting;
-  if (inviting && !el.inviteUrl.value) el.inviteUrl.value = window.location.href;
+  if (inviting && !el.inviteUrl.value) {
+    el.inviteUrl.value = window.location.href;
+    el.qr.src = `/g/${GAME_ID}/qr.svg`;
+  }
 }
 
 function flash(message) {
@@ -321,13 +332,33 @@ function nudge() {
 document.addEventListener("visibilitychange", nudge);
 window.addEventListener("online", nudge);
 
+function copied(label) {
+  el.copy.textContent = label;
+  setTimeout(() => (el.copy.textContent = "Copy"), 1800);
+}
+
 el.copy.addEventListener("click", async () => {
+  const url = window.location.href;
+
+  // The Clipboard API needs a secure context, and http://192.168.x.x is not
+  // one — which is exactly the address you use to play on your phone. Falling
+  // back to a selection means the button still does something useful there.
+  if (navigator.clipboard && window.isSecureContext) {
+    try {
+      await navigator.clipboard.writeText(url);
+      copied("Copied");
+      return;
+    } catch {
+      /* fall through */
+    }
+  }
+
+  el.inviteUrl.focus();
+  el.inviteUrl.setSelectionRange(0, url.length);
   try {
-    await navigator.clipboard.writeText(window.location.href);
-    el.copy.textContent = "Copied";
-    setTimeout(() => (el.copy.textContent = "Copy"), 1600);
+    copied(document.execCommand("copy") ? "Copied" : "Press Ctrl+C");
   } catch {
-    el.inviteUrl.select();
+    copied("Press Ctrl+C");
   }
 });
 
